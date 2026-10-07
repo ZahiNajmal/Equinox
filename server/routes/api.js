@@ -239,6 +239,11 @@ router.post('/ai/qa', authMiddleware, async (req, res) => {
     const response = await ai.askQuestion({ question: message.slice(0, 1000), level });
     return res.json({ reply: response.answer });
   } catch (err) {
+    console.error('AI QA error:', err.message);
+    // Provide more specific error message for missing API key
+    if (err.message.includes('GOOGLE_AI_KEY')) {
+      return res.status(500).json({ error: 'AI service not configured: GOOGLE_AI_KEY missing' });
+    }
     return res.status(500).json({ error: 'AI service unavailable' });
   }
 });
@@ -249,7 +254,20 @@ router.get('/news', async (req, res) => {
     const articles = await fetchNews(q);
     return res.json({ articles: Array.isArray(articles) ? articles : [] });
   } catch (err) {
-    return res.status(500).json({ error: 'Failed news', articles: [] });
+    console.error('News fetch error:', err.message);
+    // Return placeholder data if API key is missing or API fails
+    return res.json({
+      articles: [
+        {
+          title: `Sample Article about ${q}`,
+          url: 'https://example.com/article1',
+          description: `This is a placeholder article about ${q}. Configure NEWSAPI_KEY to see real news.`,
+          source: { name: 'Equinox News' },
+          publishedAt: new Date().toISOString(),
+          urlToImage: ''
+        }
+      ]
+    });
   }
 });
 

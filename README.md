@@ -15,12 +15,15 @@ See top of repository for the full folder tree. Key folders:
 - (Optional) For PDF generation: no external service required; uses pdfkit (server-side)
 
 ## Environment variables
-Copy `.env.example` to `.env` in the `server/` folder and fill with your keys (do NOT commit real keys).
+Copy `.env.example` to `.env` in the project root and fill with your keys (do NOT commit real keys).
 
-Server environment variables (server/.env):
-- GOOGLE_AI_KEY — Google AI Studio API key (or other AI provider key) — server-side only
-- NEWSAPI_KEY — NewsAPI.org API key — server-side only
-- PORT — optional (default 4000)
+Server environment variables (.env in project root):
+- `GOOGLE_AI_KEY` — Google AI Studio API key (server-side only, NO `VITE_` prefix)
+- `NEWSAPI_KEY` — NewsAPI.org API key (server-side only, NO `VITE_` prefix)
+- `DATABASE_URL` — PostgreSQL connection string (for production)
+- `JWT_SECRET` — Secure random string for JWT signing
+- `PORT` — optional (default 4000 locally, set by Render in production)
+- `NODE_ENV` — Set to `development` locally, `production` on Render
 
 ## Local development
 
@@ -53,6 +56,21 @@ Alternatively run individually:
 - Vercel: Deploy `client` as static frontend and `server` as serverless functions or deploy server separately (e.g., Render) and set environment variables there.
 - Render / Heroku: Deploy `server` as an Express app. Deploy `client` as static site or create combined build.
 - Make sure to set `GOOGLE_AI_KEY` and `NEWSAPI_KEY` in the production environment.
+
+### Render Deployment Instructions
+
+1. **Environment Variables (Required)**:
+   - `GOOGLE_AI_KEY` - Your Google AI Studio API key (NOT `VITE_GOOGLE_AI_KEY`)
+   - `NEWSAPI_KEY` - Your NewsAPI.org API key (NOT `VITE_NEWSAPI_KEY`)
+   - `DATABASE_URL` - PostgreSQL connection string (e.g., from Render's managed PostgreSQL)
+   - `JWT_SECRET` - A secure random string for JWT token signing
+   - `NODE_ENV` - Set to `production`
+   - `PORT` - Render sets this automatically (default: 5000)
+
+2. **Important Notes**:
+   - Do NOT use `VITE_` prefix for server-side environment variables on Render
+   - The `VITE_` prefix is only for client-side variables in local development
+   - Server-side code uses `process.env.GOOGLE_AI_KEY` and `process.env.NEWSAPI_KEY`
 
 ## Data & DB
 This MVP uses simple JSON files (server/data/*.json) to store experiments, countries, and user progress. For production, migrate to SQLite/Postgres.
