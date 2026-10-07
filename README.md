@@ -19,11 +19,12 @@ Copy `.env.example` to `.env` in the project root and fill with your keys (do NO
 
 Server environment variables (.env in project root):
 - `GOOGLE_AI_KEY` — Google AI Studio API key (server-side only, NO `VITE_` prefix)
-- `NEWSAPI_KEY` — NewsAPI.org API key (server-side only, NO `VITE_` prefix)
 - `DATABASE_URL` — PostgreSQL connection string (for production)
 - `JWT_SECRET` — Secure random string for JWT signing
 - `PORT` — optional (default 4000 locally, set by Render in production)
 - `NODE_ENV` — Set to `development` locally, `production` on Render
+
+Note: News is fetched from GDELT API (free, no API key required)
 
 ## Local development
 
