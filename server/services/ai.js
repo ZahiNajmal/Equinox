@@ -18,6 +18,7 @@ async function askQuestion({ question, level = "beginner" }) {
     "You are the Equinox AI Mentor.",
     `Audience level: ${level}.`,
     "Answer concisely, focus on learning, and encourage exploration.",
+    "Use markdown formatting: **bold** for emphasis, $ for inline math (e.g., $E=mc^2$), and $$ for block equations (e.g., $$\\frac{a}{b}$$).",
     `Question: ${String(question || "").slice(0, 4000)}`,
   ].join("\n");
 

@@ -1,5 +1,33 @@
 import { useState } from "react";
 import api from "../utils/api";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { InlineMath, BlockMath } from "react-katex";
+import "katex/dist/katex.min.css";
+
+const CustomParagraph = ({ children }) => {
+  if (typeof children !== 'string') {
+    return <p className="mb-2 last:mb-0">{children}</p>;
+  }
+  
+  // Handle block math $$...$$
+  const parts = children.split(/\$\$([^$]+)\$\$/);
+  const rendered = parts.map((part, index) => {
+    if (index % 2 === 1) {
+      return <BlockMath key={index} math={part.trim()} />;
+    }
+    // Handle inline math $...$
+    const inlineParts = part.split(/\$([^$]+)\$/);
+    return inlineParts.map((inlinePart, inlineIndex) => {
+      if (inlineIndex % 2 === 1) {
+        return <InlineMath key={`${index}-${inlineIndex}`} math={inlinePart.trim()} />;
+      }
+      return inlinePart;
+    });
+  });
+  
+  return <p className="mb-2 last:mb-0">{rendered}</p>;
+};
 
 export default function Mentor() {
   const [messages, setMessages] = useState([
@@ -56,13 +84,32 @@ export default function Mentor() {
               className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-full sm:max-w-lg p-4 rounded-2xl shadow-sm whitespace-pre-wrap ${
+                className={`max-w-full sm:max-w-lg p-4 rounded-2xl shadow-sm ${
                   message.role === "user"
                     ? "bg-blue-600 text-white rounded-br-none"
                     : "bg-gray-100 text-gray-800 rounded-tl-none border border-gray-200"
                 }`}
               >
-                {message.content}
+                {message.role === "user" ? (
+                  <div className="whitespace-pre-wrap">{message.content}</div>
+                ) : (
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      p: CustomParagraph,
+                      strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+                      em: ({ children }) => <em className="italic">{children}</em>,
+                      code: ({ inline, children }) =>
+                        inline ? (
+                          <code className="bg-gray-200 px-1 py-0.5 rounded text-sm">{children}</code>
+                        ) : (
+                          <code className="block bg-gray-200 p-2 rounded text-sm overflow-x-auto">{children}</code>
+                        ),
+                    }}
+                  >
+                    {message.content}
+                  </ReactMarkdown>
+                )}
               </div>
             </div>
           ))}
