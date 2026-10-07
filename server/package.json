@@ -1,0 +1,26 @@
+{
+    "name": "equinox-server",
+    "version": "1.0.0",
+    "private": true,
+    "main": "index.js",
+    "scripts": {
+        "build": "cd client && npm install && npm run build",
+        "start": "node server/index.js",
+        "server-dev": "nodemon server/index.js"
+        },
+    "dependencies": {
+        "axios": "^1.13.2",
+        "bcryptjs": "^3.0.3",
+        "better-sqlite3": "^12.5.0",
+        "cors": "^2.8.5",
+        "dotenv": "^17.2.3",
+        "equinox-app": "file:..",
+        "express": "^4.18.2",
+        "jsonwebtoken": "^9.0.3",
+        "pdfkit": "^0.17.2",
+        "pg": "^8.16.3"
+    },
+    "devDependencies": {
+        "nodemon": "^2.0.22"
+    }
+}

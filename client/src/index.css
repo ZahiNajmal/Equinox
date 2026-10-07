@@ -1,0 +1,56 @@
+/* client/src/index.css */
+
+/* 1. Leaflet CSS first (must be before Tailwind) */
+@import "leaflet/dist/leaflet.css";
+
+/* 2. Tailwind layers – ONLY ONE TIME EACH */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 3. Custom utilities – modern bright gradients */
+@layer utilities {
+  /* Bright orange → purple → blue gradient text */
+  .text-accent-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(90deg, #ff7f50, #9b59b6, #3498db);
+  }
+
+  /* Bright orange → purple → blue gradient background */
+  .bg-accent-gradient {
+    background-image: linear-gradient(90deg, #ff7f50, #9b59b6, #3498db);
+  }
+
+  /* Borders with gradient effect (using pseudo-element for better effect if needed) */
+  .border-accent-gradient {
+    border-image: linear-gradient(90deg, #ff7f50, #9b59b6, #3498db) 1;
+    border-style: solid;
+  }
+
+  /* Additional plain bright colors for quick usage */
+  .text-bright-orange   { @apply text-[#ff7f50]; }
+  .bg-bright-orange     { @apply bg-[#ff7f50]; }
+
+  .text-bright-purple   { @apply text-[#9b59b6]; }
+  .bg-bright-purple     { @apply bg-[#9b59b6]; }
+
+  .text-bright-blue     { @apply text-[#3498db]; }
+  .bg-bright-blue       { @apply bg-[#3498db]; }
+}
+
+/* 4. Leaflet container styling */
+.leaflet-container {
+  @apply w-full h-full rounded-xl;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+}

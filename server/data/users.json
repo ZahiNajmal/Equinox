@@ -1,0 +1,11 @@
+[
+    {
+      "id": "system-user",
+      "name": "System",
+      "email": "system@equinox.local",
+      "passwordHash": "$2a$10$0uJ/placeholderhashforsecurity", 
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "progress": { "xp": 1240, "badges": ["starter", "lab-explorer"], "quizzes": [] },
+      "recent": [{ "id": 1, "type": "lab", "title": "Ran Reaction Rate exp", "date": "2025-11-30" }]
+    }
+  ]

@@ -1,0 +1,34 @@
+{
+  "name": "equinox-app",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Equinox \u2013 Full-Stack Science Education Platform",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace=equinox-client",
+    "start": "node server/index.js"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "axios": "^1.6.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.2",
+    "firebase": "^12.6.0",
+    "jsonwebtoken": "^9.0.0",
+    "leaflet": "^1.9.4",
+    "node-fetch": "^3.3.2",
+    "pdfkit": "^0.17.2",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
