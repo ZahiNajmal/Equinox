@@ -1,9 +1,7 @@
 import { useState } from "react";
+import api from "../utils/api";
 
 // --- Global Constants and Data ---
-
-const GOOGLE_AI_KEY = import.meta.env.VITE_GOOGLE_AI_KEY;
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${GOOGLE_AI_KEY}`;
 
 // Full 118-element data structure
 const elements = [
@@ -189,46 +187,11 @@ export default function App() {
 
         try {
             const prompt = `You are the Equinox AI Mentor. Give a small, simple, and easy-to-understand explanation of the chemical element ${selected.name} (${selected.symbol}), suitable for a beginner student. Include its main use and a key fact.`;
-            const body = {
-                contents: [{ parts: [{ text: prompt }] }],
-                tools: [{ "google_search": {} }],
-                safetySettings: [
-                    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_ONLY_HIGH" },
-                    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" },
-                    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_ONLY_HIGH" },
-                    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_ONLY_HIGH" }
-                ]
-            };
-
-            const maxRetries = 3;
-            let lastError = null;
-
-            for (let i = 0; i < maxRetries; i++) {
-                try {
-                    const res = await fetch(GEMINI_URL, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(body)
-                    });
-
-                    if (!res.ok) {
-                        throw new Error(`Gemini request failed with status: ${res.status}`);
-                    }
-
-                    const data = await res.json();
-                    const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join("\n").trim();
-                    setAiResponse(text || "No response");
-                    return; // Success, exit retry loop
-
-                } catch (err) {
-                    lastError = err;
-                    if (i < maxRetries - 1) {
-                        const delay = Math.pow(2, i) * 1000;
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                    }
-                }
-            }
-            throw lastError; // If all retries fail
+            const { data } = await api.post("/ai/qa", {
+                message: prompt,
+                level: "beginner"
+            });
+            setAiResponse(data?.reply || "No response");
 
         } catch (err) {
             console.error("Periodic table mentor error", err);
