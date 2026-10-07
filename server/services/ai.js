@@ -2,14 +2,17 @@
 // Keep the Gemini credential on the server. Never use a VITE_ variable here.
 const axios = require("axios");
 
-const MODEL = "gemini-2.5-flash";
+const MODEL = "gemini-2.5-flash-lite";
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
 async function askQuestion({ question, level = "beginner" }) {
   const apiKey = process.env.GOOGLE_AI_KEY;
   if (!apiKey) {
+    console.error("GOOGLE_AI_KEY is not configured on the server");
     throw new Error("GOOGLE_AI_KEY is not configured on the server");
   }
+
+  console.log("AI request received for model:", MODEL);
 
   const prompt = [
     "You are the Equinox AI Mentor.",
@@ -41,13 +44,19 @@ async function askQuestion({ question, level = "beginner" }) {
       .join("\n")
       .trim();
 
-    if (!answer) throw new Error("Gemini returned no text");
+    if (!answer) {
+      console.error("Gemini returned no text in response");
+      throw new Error("Gemini returned no text");
+    }
+
+    console.log("AI request successful");
     return { answer };
   } catch (error) {
     // Do not log the request URL/config: the API key is sent as a query parameter.
     console.error("Gemini API request failed", {
       status: error.response?.status,
       message: error.response?.data?.error?.message || error.message,
+      model: MODEL,
     });
     throw new Error("AI service failed");
   }
