@@ -6,6 +6,7 @@ This guide explains how to deploy the Equinox application to Render.
 
 - A Render account (free tier available)
 - Google AI Studio API key
+- NewsAPI.org API key (free tier available)
 - GitHub repository with your code
 
 ## Step 1: Prepare Your Code
@@ -35,6 +36,7 @@ This guide explains how to deploy the Equinox application to Render.
 
 4. **Environment Variables** (Critical - do NOT use `VITE_` prefix):
    - `GOOGLE_AI_KEY` = Your Google AI Studio API key
+   - `NEWSAPI_KEY` = Your NewsAPI.org API key
    - `DATABASE_URL` = (Paste from Step 2)
    - `JWT_SECRET` = Generate a secure random string (e.g., use `openssl rand -base64 32`)
    - `NODE_ENV` = `production`
@@ -70,7 +72,7 @@ If you prefer separate deployments:
 3. Test the features:
    - Sign up / Login
    - AI Mentor (should use `GOOGLE_AI_KEY`)
-   - News feed (uses GDELT API - free, no API key needed)
+   - News feed (should use `NEWSAPI_KEY`)
    - Other features
 
 ## Troubleshooting
@@ -90,13 +92,16 @@ If you prefer separate deployments:
 
 ### News Feed Shows Errors
 
-**Cause**: GDELT API is temporarily unavailable or network issues
+**Cause**: Missing or invalid `NEWSAPI_KEY`
 
 **Fix**:
-1. The app will show an error message if GDELT fails
-2. GDELT is a free public API, so occasional outages may occur
-3. Check Render logs for specific error details
-4. If persistent, the error handling will display a user-friendly message
+1. Go to your Render web service
+2. Settings → Environment Variables
+3. Add `NEWSAPI_KEY` with your NewsAPI.org API key (no `VITE_` prefix)
+4. Remove any `VITE_NEWSAPI_KEY` if present
+5. Redeploy
+
+**Note**: NewsAPI free tier allows 100 requests/day
 
 ### Database Connection Errors
 
@@ -128,6 +133,7 @@ If you still see errors, check:
 | Variable | Required | Description | Example |
 |----------|----------|-------------|---------|
 | `GOOGLE_AI_KEY` | Yes | Google AI Studio API key | `AIzaSy...` |
+| `NEWSAPI_KEY` | Yes | NewsAPI.org API key | `abc123...` |
 | `DATABASE_URL` | Yes | PostgreSQL connection string | `postgres://...` |
 | `JWT_SECRET` | Yes | Secret for JWT tokens | `random-secret-string` |
 | `NODE_ENV` | Yes | Environment | `production` |
@@ -142,7 +148,7 @@ If you still see errors, check:
 
 - **API Costs**:
   - Google AI Studio: Free tier available, monitor usage
-  - GDELT: Free public API (no API key required)
+  - NewsAPI.org: Free tier (100 requests/day)
 
 ## Updating Your Deployment
 
