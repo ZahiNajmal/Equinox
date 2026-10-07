@@ -2,7 +2,7 @@
 // Keep the Gemini credential on the server. Never use a VITE_ variable here.
 const axios = require("axios");
 
-const MODEL = "gemini-2.5-flash-lite";
+const MODEL = "gemini-3.5-flash-lite";
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
 async function askQuestion({ question, level = "beginner" }) {
@@ -58,7 +58,11 @@ async function askQuestion({ question, level = "beginner" }) {
       message: error.response?.data?.error?.message || error.message,
       model: MODEL,
     });
-    throw new Error("AI service failed");
+
+    // Return fallback response instead of throwing to prevent 500 errors
+    return {
+      answer: "I'm having trouble connecting right now. Please try again in a moment. If this persists, check that your GOOGLE_AI_KEY is correctly configured in your environment variables."
+    };
   }
 }
 
