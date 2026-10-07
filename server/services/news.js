@@ -24,10 +24,11 @@ async function fetchNews(topic = "science") {
   try {
     const response = await axios.get(GDELT_URL, {
       params: {
-        query,
+        // GDELT searches worldwide by default; restrict its source language to English.
+        query: `${query} sourcelang:english`,
         mode: "artlist",
         format: "json",
-        maxrecords: 12,
+        maxrecords: 75,
         sort: "datedesc",
       },
       timeout: 20000,
@@ -36,7 +37,11 @@ async function fetchNews(topic = "science") {
 
     const rawArticles = Array.isArray(response.data?.articles) ? response.data.articles : [];
     return rawArticles
-      .filter((article) => article?.url && article?.title)
+      .filter((article) => {
+        const language = String(article?.language || "").trim().toLowerCase();
+        return article?.url && article?.title && (language === "english" || language === "eng");
+      })
+      .slice(0, 12)
       .map((article) => ({
         title: article.title,
         url: article.url,
