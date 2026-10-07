@@ -1,46 +1,59 @@
 // server/services/news.js
-const axios = require('axios');
+// Server-side adapter for GDELT DOC API (public news search; no API key).
+// The frontend must call this through GET /api/news, never call a provider directly.
+const axios = require("axios");
 
-const NEWSAPI_KEY = process.env.NEWSAPI_KEY || process.env.VITE_NEWSAPI_KEY || ''; // prefer NEWSAPI_KEY // server-only key (must be set in .env)
+const GDELT_URL = "https://api.gdeltproject.org/api/v2/doc/doc";
 
-async function fetchNews(topic = 'science') {
-  // If no key, return a placeholder article so UI still shows something in dev
-  if (!NEWSAPI_KEY) {
-    return [
-      {
-        title: `Sample Article about ${topic}`,
-        url: 'https://example.com/article1',
-        description: `This is a placeholder article about ${topic}`,
-        source: { name: 'Equinox News' },
-        publishedAt: new Date().toISOString(),
-        urlToImage: ''
-      }
-    ];
+function parseSeenDate(value) {
+  if (!value) return null;
+  // GDELT dates commonly look like 20261007T183000Z.
+  const match = String(value).match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z?$/);
+  if (match) {
+    const [, year, month, day, hour, minute, second] = match;
+    const parsed = new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}Z`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
   }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
 
-  const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(topic)}&language=en&pageSize=10&apiKey=${NEWSAPI_KEY}`;
+async function fetchNews(topic = "science") {
+  const query = String(topic || "science").trim().slice(0, 100) || "science";
 
   try {
-    const resp = await axios.get(url);
-    // NewsAPI responds with status code 200 even for some error states; check payload
-    if (resp.data && resp.data.status === 'ok' && Array.isArray(resp.data.articles)) {
-      return resp.data.articles;
-    } else {
-      // Keep the message from the API if present for debugging
-      const msg = (resp.data && resp.data.message) ? resp.data.message : 'Unexpected response from NewsAPI';
-      const err = new Error(`NewsAPI error: ${msg}`);
-      err.status = resp.status || 500;
-      throw err;
-    }
+    const response = await axios.get(GDELT_URL, {
+      params: {
+        query,
+        mode: "artlist",
+        format: "json",
+        maxrecords: 12,
+        sort: "datedesc",
+      },
+      timeout: 20000,
+      headers: { "User-Agent": "Equinox-Education-App/1.0" },
+    });
+
+    const rawArticles = Array.isArray(response.data?.articles) ? response.data.articles : [];
+    return rawArticles
+      .filter((article) => article?.url && article?.title)
+      .map((article) => ({
+        title: article.title,
+        url: article.url,
+        description: "Open the source to read the full story.",
+        source: { name: article.domain || article.sourcecountry || "News source" },
+        publishedAt: parseSeenDate(article.seendate),
+        urlToImage: article.socialimage || "",
+      }));
   } catch (error) {
-    // Rewrap axios errors to include status if available
-    const status = error.response ? error.response.status : 500;
-    const message = error.response && error.response.data && error.response.data.message
-      ? error.response.data.message
-      : error.message || 'Failed to fetch news';
-    const err = new Error(message);
-    err.status = status;
-    throw err;
+    // Avoid logging full request config or URLs; log only safe diagnostic details.
+    console.error("News provider request failed", {
+      status: error.response?.status,
+      message: error.message,
+    });
+    const wrapped = new Error("News search is temporarily unavailable");
+    wrapped.status = error.response?.status || 502;
+    throw wrapped;
   }
 }
 
