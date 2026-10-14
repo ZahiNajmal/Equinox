@@ -6,11 +6,6 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 
-const CustomParagraph = ({ children }) => {
-  // ReactMarkdown passes children as strings or arrays of nodes; rendering directly preserves inline elements.
-  return <p className="mb-2 last:mb-0">{children}</p>;
-};
-
 const CustomHeading = ({ level, children }) => {
   const baseClasses = "font-bold mb-2 mt-4";
   const sizeClasses = {
@@ -22,6 +17,10 @@ const CustomHeading = ({ level, children }) => {
     6: "text-xs",
   };
   return React.createElement(`h${level}`, { className: `${baseClasses} ${sizeClasses[level]}` }, children);
+};
+
+const CustomParagraph = ({ children }) => {
+  return <p className="mb-2 last:mb-0">{children}</p>;
 };
 
 export default function Mentor() {
