@@ -9,7 +9,7 @@ const CustomParagraph = ({ children }) => {
   if (typeof children !== 'string') {
     return <p className="mb-2 last:mb-0">{children}</p>;
   }
-  
+
   // Handle block math $$...$$
   const parts = children.split(/\$\$([^$]+)\$\$/);
   const rendered = parts.map((part, index) => {
@@ -25,8 +25,21 @@ const CustomParagraph = ({ children }) => {
       return inlinePart;
     });
   });
-  
+
   return <p className="mb-2 last:mb-0">{rendered}</p>;
+};
+
+const CustomHeading = ({ level, children }) => {
+  const baseClasses = "font-bold mb-2 mt-4";
+  const sizeClasses = {
+    1: "text-2xl",
+    2: "text-xl",
+    3: "text-lg",
+    4: "text-base",
+    5: "text-sm",
+    6: "text-xs",
+  };
+  return React.createElement(`h${level}`, { className: `${baseClasses} ${sizeClasses[level]}` }, children);
 };
 
 export default function Mentor() {
@@ -97,6 +110,12 @@ export default function Mentor() {
                     remarkPlugins={[remarkGfm]}
                     components={{
                       p: CustomParagraph,
+                      h1: ({ children }) => <CustomHeading level={1}>{children}</CustomHeading>,
+                      h2: ({ children }) => <CustomHeading level={2}>{children}</CustomHeading>,
+                      h3: ({ children }) => <CustomHeading level={3}>{children}</CustomHeading>,
+                      h4: ({ children }) => <CustomHeading level={4}>{children}</CustomHeading>,
+                      h5: ({ children }) => <CustomHeading level={5}>{children}</CustomHeading>,
+                      h6: ({ children }) => <CustomHeading level={6}>{children}</CustomHeading>,
                       strong: ({ children }) => <strong className="font-bold">{children}</strong>,
                       em: ({ children }) => <em className="italic">{children}</em>,
                       code: ({ inline, children }) =>
@@ -105,6 +124,40 @@ export default function Mentor() {
                         ) : (
                           <code className="block bg-gray-200 p-2 rounded text-sm overflow-x-auto">{children}</code>
                         ),
+                      pre: ({ children }) => <pre className="bg-gray-800 text-white p-4 rounded-lg overflow-x-auto">{children}</pre>,
+                      ul: ({ children }) => <ul className="list-disc list-inside mb-2">{children}</ul>,
+                      ol: ({ children }) => <ol className="list-decimal list-inside mb-2">{children}</ol>,
+                      li: ({ children }) => <li className="mb-1">{children}</li>,
+                      blockquote: ({ children }) => (
+                        <blockquote className="border-l-4 border-purple-500 pl-4 italic text-gray-600 mb-2">
+                          {children}
+                        </blockquote>
+                      ),
+                      a: ({ href, children }) => (
+                        <a href={href} className="text-purple-600 hover:text-purple-800 underline" target="_blank" rel="noopener noreferrer">
+                          {children}
+                        </a>
+                      ),
+                      hr: () => <hr className="my-4 border-gray-300" />,
+                      table: ({ children }) => (
+                        <div className="overflow-x-auto mb-2">
+                          <table className="min-w-full border border-gray-300">{children}</table>
+                        </div>
+                      ),
+                      thead: ({ children }) => <thead className="bg-gray-100">{children}</thead>,
+                      tbody: ({ children }) => <tbody>{children}</tbody>,
+                      tr: ({ children }) => <tr className="border-b border-gray-300">{children}</tr>,
+                      th: ({ children }) => <th className="px-4 py-2 text-left font-bold">{children}</th>,
+                      td: ({ children }) => <td className="px-4 py-2">{children}</td>,
+                      del: ({ children }) => <del className="line-through text-gray-500">{children}</del>,
+                      input: ({ checked, type, disabled }) => (
+                        <input
+                          type={type}
+                          checked={checked}
+                          disabled={disabled}
+                          className="mr-2"
+                        />
+                      ),
                     }}
                   >
                     {message.content}
