@@ -2,7 +2,7 @@
   "name": "equinox-app",
   "private": true,
   "version": "1.0.0",
-  "description": "Equinox \u2013 Full-Stack Science Education Platform",
+  "description": "Equinox – Full-Stack Science Education Platform",
   "workspaces": [
     "client",
     "server"
