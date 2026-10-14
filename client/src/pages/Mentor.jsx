@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import api from "../utils/api";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
