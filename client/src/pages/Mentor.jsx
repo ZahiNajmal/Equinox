@@ -10,8 +10,23 @@ const CustomParagraph = ({ children }) => {
     return <p className="mb-2 last:mb-0">{children}</p>;
   }
 
+  // Preprocess: fix common LaTeX formatting issues
+  let processed = children;
+
+  // Fix cases like "0$" -> "$0$" if it looks like a standalone number/symbol
+  processed = processed.replace(/(\d+)\$/g, '$$$1$');
+  processed = processed.replace(/\$(\d+)(?!\$)/g, '$$$1$');
+
+  // Fix cases like "e$" -> "$e$" for single letters
+  processed = processed.replace(/([a-zA-Z])\$/g, '$$$1$');
+  processed = processed.replace(/\$([a-zA-Z])(?!\$)/g, '$$$1$');
+
+  // Fix cases like "\pi$" -> "$\pi$"
+  processed = processed.replace(/(\\[a-zA-Z]+)\$/g, '$$$1$');
+  processed = processed.replace(/\$(\\[a-zA-Z]+)(?!\$)/g, '$$$1$');
+
   // Handle block math $$...$$
-  const parts = children.split(/\$\$([^$]+)\$\$/);
+  const parts = processed.split(/\$\$([^$]+)\$\$/);
   const rendered = parts.map((part, index) => {
     if (index % 2 === 1) {
       return <BlockMath key={index} math={part.trim()} />;
