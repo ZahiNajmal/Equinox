@@ -465,174 +465,228 @@ const countryDataHardcoded = countryList.map((country, index) => ({
   fact: facts[country.name] || `Did you know? ${country.name} is in ${country.region} with ${country.population.toLocaleString()} people.`,
 }));
 
-const redIcon = new L.Icon({
-  iconUrl: "https://i.postimg.cc/w7dPyJNf/Map-Marker.png",
-  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
-  iconSize: [40, 60],
-  iconAnchor: [20, 60],
-  tooltipAnchor: [25, -30],
-  shadowSize: [41, 41],
+const redIcon = L.divIcon({
+  className: "atlas-marker-shell",
+  html: '<span class="atlas-marker"><span></span></span>',
+  iconSize: [24, 24],
+  iconAnchor: [12, 12],
 });
-/* ============================================================================= */
+
+const selectedIcon = L.divIcon({
+  className: "atlas-marker-shell atlas-marker-selected-shell",
+  html: '<span class="atlas-marker atlas-marker-selected"><span></span></span>',
+  iconSize: [30, 30],
+  iconAnchor: [15, 15],
+});
+
+const regions = ["All", "Africa", "Americas", "Asia", "Europe", "Oceania"];
 
 const Atlas = () => {
   const [selectedCountry, setSelectedCountry] = useState(null);
+  const [search, setSearch] = useState("");
+  const [activeRegion, setActiveRegion] = useState("All");
+
+  const visibleCountries = countryDataHardcoded.filter((country) => {
+    const matchesSearch = country.name.toLowerCase().includes(search.trim().toLowerCase());
+    const matchesRegion = activeRegion === "All" || country.region === activeRegion;
+    return matchesSearch && matchesRegion;
+  });
+
+  const selectCountry = (country) => {
+    setSelectedCountry(country);
+    setSearch("");
+  };
 
   return (
-    <div
-      className="relative min-h-[calc(100vh-64px)] w-full"
-      style={{
-        paddingTop: "24px",
-        paddingBottom: "24px",
-        background: "linear-gradient(135deg, #ff8a00, #e52e71, #9c27b0, #2196f3)",
-      }}
-    >
-      <div className="mx-auto flex w-full max-w-7xl flex-col px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <header className="text-center">
-          <h1 className="text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl">
-            Atlas
-          </h1>
-          <p className="mx-auto mt-3 max-w-2xl text-base text-white/85 sm:mt-4 sm:text-lg">
-            Explore the interactive map to discover countries, populations, SDGs, and fascinating global insights.
-          </p>
+    <div className="atlas-page min-h-screen">
+      <div className="mx-auto w-full max-w-[1500px] px-4 py-6 sm:px-6 sm:py-9 lg:px-8">
+        <header className="atlas-header mb-6 flex flex-col gap-5 rounded-[28px] p-6 text-white sm:p-8 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/90">
+              <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,0.9)]" />
+              Explore the world
+            </div>
+            <h1 className="text-4xl font-black tracking-tight sm:text-5xl">Atlas</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/75 sm:text-base">
+              Discover countries, compare populations, and uncover the stories that make every place unique.
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
+              <div className="text-2xl font-bold">{countryDataHardcoded.length}</div>
+              <div className="text-xs text-white/70">places to explore</div>
+            </div>
+            <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
+              <div className="text-2xl font-bold">{activeRegion === "All" ? "6" : "1"}</div>
+              <div className="text-xs text-white/70">regions</div>
+            </div>
+          </div>
         </header>
 
-        {/* Content */}
-        <main className="mt-8 flex flex-1 flex-col gap-6 lg:flex-row lg:items-stretch lg:gap-8 min-h-0">
-          {/* Map */}
-          <section
-            className="map-section relative isolate z-0 min-h-0 overflow-hidden rounded-2xl bg-white/95 shadow-[0_16px_50px_rgba(0,0,0,0.25)] lg:flex-[2]"
-            style={{ height: "55vh", minHeight: "360px" }}
-          >
-            <MapContainer
-              center={[20, 0]}
-              zoom={2}
-              scrollWheelZoom={true}
-              zoomControl={true}
-              style={{ height: "100%", width: "100%" }}
-            >
-              <TileLayer
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              />
-              {countryDataHardcoded.map((country, i) => (
-                <Marker
-                  key={i}
-                  position={[country.lat, country.lng]}
-                  icon={redIcon}
-                  eventHandlers={{ click: () => setSelectedCountry(country) }}
-                >
-                  <Tooltip direction="top" offset={[0, -10]} opacity={1} permanent={false}>
-                    <img
-                      src={country.flag}
-                      alt={country.name}
-                      style={{
-                        width: "50px",
-                        borderRadius: "8px",
-                        boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
-                      }}
-                    />
-                  </Tooltip>
-                </Marker>
-              ))}
-            </MapContainer>
+        <main className="grid min-h-[680px] grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.8fr)]">
+          <section className="atlas-map-card flex min-h-[520px] flex-col overflow-hidden rounded-[26px] border border-white/60 bg-white shadow-2xl shadow-slate-950/15">
+            <div className="border-b border-slate-100 p-4 sm:p-5">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                <div>
+                  <h2 className="font-bold text-slate-900">World map</h2>
+                  <p className="mt-1 text-xs text-slate-500">Choose a marker or search for a place</p>
+                </div>
+                <label className="relative block w-full xl:max-w-xs">
+                  <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+                  </span>
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search countries…"
+                    aria-label="Search countries"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100"
+                  />
+                </label>
+              </div>
+              <div className="mt-4 flex gap-2 overflow-x-auto pb-1" aria-label="Filter countries by region">
+                {regions.map((region) => (
+                  <button
+                    key={region}
+                    type="button"
+                    onClick={() => setActiveRegion(region)}
+                    className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
+                      activeRegion === region
+                        ? "bg-violet-600 text-white shadow-md shadow-violet-600/20"
+                        : "bg-slate-100 text-slate-600 hover:bg-violet-50 hover:text-violet-700"
+                    }`}
+                  >
+                    {region}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="relative min-h-[440px] flex-1">
+              <MapContainer
+                center={[20, 0]}
+                zoom={2}
+                minZoom={2}
+                maxZoom={8}
+                scrollWheelZoom={true}
+                zoomControl={true}
+                worldCopyJump={true}
+                style={{ height: "100%", minHeight: "440px", width: "100%", background: "#eef2f7" }}
+              >
+                <TileLayer
+                  url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+                  subdomains="abcd"
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                />
+                {visibleCountries.map((country) => (
+                  <Marker
+                    key={country.cca2}
+                    position={[country.lat, country.lng]}
+                    icon={selectedCountry?.cca2 === country.cca2 ? selectedIcon : redIcon}
+                    eventHandlers={{ click: () => setSelectedCountry(country) }}
+                  >
+                    <Tooltip direction="top" offset={[0, -10]} opacity={1}>
+                      <span className="font-semibold">{country.name}</span>
+                    </Tooltip>
+                  </Marker>
+                ))}
+              </MapContainer>
+              <div className="pointer-events-none absolute bottom-4 left-4 z-[400] rounded-xl border border-white/80 bg-white/90 px-3 py-2 text-xs font-medium text-slate-600 shadow-lg backdrop-blur">
+                Showing <span className="font-bold text-slate-900">{visibleCountries.length}</span> places
+              </div>
+            </div>
           </section>
 
-          {/* Details */}
-          <aside className="details-panel min-h-0 overflow-y-auto rounded-2xl bg-white/95 p-5 shadow-[0_16px_50px_rgba(0,0,0,0.25)] sm:p-7 lg:flex-[1]">
+          <aside className="atlas-details min-h-[420px] overflow-y-auto rounded-[26px] border border-white/60 bg-white p-5 shadow-2xl shadow-slate-950/15 sm:p-6">
             {selectedCountry ? (
-              <div className="flex flex-col items-center gap-6">
-                <img
-                  src={selectedCountry.flag}
-                  alt={selectedCountry.name}
-                  className="w-[180px] max-w-full rounded-2xl shadow-[0_12px_30px_rgba(0,0,0,0.25)]"
-                />
-
-                <div className="text-center">
-                  <h2 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                    {selectedCountry.name}
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-600">
-                    {selectedCountry.region}
-                  </p>
-                </div>
-
-                <div className="w-full rounded-xl border border-slate-200 bg-white p-4 text-slate-800">
-                  <div className="flex items-center justify-between gap-4">
-                    <span className="text-sm font-medium text-slate-600">Population</span>
-                    <span className="text-sm font-semibold">{selectedCountry.population.toLocaleString()}</span>
-                  </div>
-                </div>
-                <div className="w-full rounded-xl border border-slate-200 bg-white p-4 text-slate-800">
-                  <div className="flex items-center justify-between gap-4">
-                    <span className="text-sm font-medium text-slate-600">Region</span>
-                    <span className="text-sm font-semibold">{selectedCountry.region.toLocaleString()}</span>
+              <div className="animate-[atlasIn_250ms_ease-out]">
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-50 via-white to-indigo-50 p-5">
+                  <div className="absolute -right-8 -top-10 h-36 w-36 rounded-full bg-violet-200/30 blur-2xl" />
+                  <div className="relative flex items-center gap-4">
+                    <img
+                      src={selectedCountry.flag}
+                      alt={`${selectedCountry.name} flag`}
+                      className="h-16 w-24 rounded-xl border border-white object-cover shadow-md"
+                    />
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold uppercase tracking-[0.16em] text-violet-600">Country profile</div>
+                      <h2 className="mt-1 text-xl font-extrabold leading-tight text-slate-900 sm:text-2xl">{selectedCountry.name}</h2>
+                      <p className="mt-1 text-sm text-slate-500">{selectedCountry.region}</p>
+                    </div>
                   </div>
                 </div>
 
-                <div className="w-full">
-                  <h3 className="text-sm font-semibold tracking-wide text-slate-700">Related SDGs</h3>
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                    <div className="text-xs font-medium text-slate-500">Population</div>
+                    <div className="mt-1 text-lg font-extrabold tracking-tight text-slate-900">{selectedCountry.population.toLocaleString()}</div>
+                    <div className="mt-1 text-[11px] text-slate-400">people</div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                    <div className="text-xs font-medium text-slate-500">Region</div>
+                    <div className="mt-1 text-lg font-extrabold tracking-tight text-slate-900">{selectedCountry.region}</div>
+                    <div className="mt-1 text-[11px] text-slate-400">world region</div>
+                  </div>
+                </div>
+
+                <section className="mt-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-slate-900">Related SDGs</h3>
+                    <span className="text-xs text-slate-400">UN goals</span>
+                  </div>
                   <ul className="mt-3 flex flex-wrap gap-2">
-                    {selectedCountry.sdgs.map((goal, i) => (
-                      <li
-                        key={i}
-                        className="rounded-full bg-violet-100 px-3 py-1 text-sm font-semibold text-violet-800"
-                      >
-                        {goal}
-                      </li>
+                    {selectedCountry.sdgs.map((goal, index) => (
+                      <li key={`${goal}-${index}`} className="rounded-full border border-violet-100 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700">{goal}</li>
                     ))}
                   </ul>
-                </div>
+                </section>
 
-                <div className="w-full rounded-2xl border-l-4 border-amber-500 bg-amber-50 p-5 text-amber-900">
-                  <div className="text-sm font-semibold">Fun fact</div>
-                  <p className="mt-2 text-sm leading-relaxed">{selectedCountry.fact}</p>
-                </div>
+                <section className="mt-6 rounded-2xl border border-amber-100 bg-amber-50/80 p-4">
+                  <div className="flex items-center gap-2 text-sm font-bold text-amber-900">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100" aria-hidden="true">✦</span>
+                    A little-known fact
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-amber-950/80">{selectedCountry.fact}</p>
+                </section>
               </div>
             ) : (
-              <div className="flex h-full min-h-[240px] flex-col items-center justify-center rounded-2xl border border-white/40 bg-white/70 p-6 text-center">
-                <div className="text-lg font-semibold text-slate-800">Select a country</div>
-                <div className="mt-2 text-sm text-slate-600">
-                  Tap any marker on the map to view population, region, SDGs, and a fun fact.
+              <div className="flex min-h-[380px] flex-col items-center justify-center px-5 text-center">
+                <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-violet-100 to-indigo-100 text-violet-600">
+                  <svg viewBox="0 0 24 24" className="h-10 w-10" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8M12 3c2.2 2.4 3.3 5.4 3.3 9s-1.1 6.6-3.3 9c-2.2-2.4-3.3-5.4-3.3-9S9.8 5.4 12 3Z"/></svg>
                 </div>
+                <h2 className="text-xl font-extrabold text-slate-900">Your next discovery</h2>
+                <p className="mt-2 max-w-xs text-sm leading-6 text-slate-500">Select a marker on the map to explore a country’s population, region, SDGs, and a fascinating fact.</p>
+                <div className="mt-5 rounded-full bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-500">{visibleCountries.length} places currently on the map</div>
               </div>
             )}
           </aside>
         </main>
       </div>
 
-      {/* No animations. Responsive helpers + optional scrollbar styling */}
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
-          @media (min-width: 1024px) {
-            .map-section {
-              height: auto !important;
-              min-height: calc(100vh - 64px - 220px) !important;
-            }
-          }
-
-          .details-panel::-webkit-scrollbar {
-            width: 10px;
-          }
-
-          .details-panel::-webkit-scrollbar-track {
-            background: rgba(15, 23, 42, 0.08);
-            border-radius: 10px;
-          }
-
-          .details-panel::-webkit-scrollbar-thumb {
-            background: rgba(124, 58, 237, 0.55);
-            border-radius: 10px;
-          }
-
-          .details-panel::-webkit-scrollbar-thumb:hover {
-            background: rgba(124, 58, 237, 0.7);
-          }
-        `,
-        }}
-      />
+      <style dangerouslySetInnerHTML={{ __html: `
+        .atlas-page {
+          background: radial-gradient(ellipse at 15% 0%, rgba(124, 58, 237, .20), transparent 35%),
+                      radial-gradient(ellipse at 95% 30%, rgba(79, 70, 229, .16), transparent 32%),
+                      #f4f5fb;
+        }
+        .atlas-header {
+          background: linear-gradient(120deg, #21164b 0%, #392273 48%, #5b3ca5 100%);
+          box-shadow: 0 18px 48px rgba(39, 24, 86, .22);
+        }
+        .atlas-marker-shell { background: transparent; border: 0; }
+        .atlas-marker {
+          display: flex; width: 24px; height: 24px; align-items: center; justify-content: center;
+          border: 2px solid white; border-radius: 9999px; background: #7653d6;
+          box-shadow: 0 3px 10px rgba(48, 31, 104, .35); transition: transform .15s ease, background .15s ease;
+        }
+        .atlas-marker span { width: 6px; height: 6px; border-radius: 9999px; background: white; }
+        .atlas-marker:hover { transform: scale(1.25); background: #4f35a3; }
+        .atlas-marker-selected { width: 30px; height: 30px; background: #f97316; box-shadow: 0 0 0 6px rgba(249, 115, 22, .2), 0 4px 14px rgba(124, 45, 18, .35); }
+        .atlas-marker-selected-shell { z-index: 500 !important; }
+        .atlas-details::-webkit-scrollbar { width: 7px; }
+        .atlas-details::-webkit-scrollbar-thumb { background: #d8d3e8; border-radius: 99px; }
+        @keyframes atlasIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+      ` }} />
     </div>
   );
 };
