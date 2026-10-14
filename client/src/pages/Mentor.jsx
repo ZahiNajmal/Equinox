@@ -10,36 +10,48 @@ const CustomParagraph = ({ children }) => {
     return <p className="mb-2 last:mb-0">{children}</p>;
   }
 
-  // Preprocess: fix common LaTeX formatting issues
-  let processed = children;
+  let text = children;
 
-  // Fix cases like "0$" -> "$0$" if it looks like a standalone number/symbol
-  processed = processed.replace(/(\d+)\$/g, '$$$1$');
-  processed = processed.replace(/\$(\d+)(?!\$)/g, '$$$1$');
+  // Handle block math $$...$$ first (must be before inline math)
+  const blockMathPattern = /\$\$([^$]+)\$\$/g;
+  const blockMaths = [];
+  let match;
+  while ((match = blockMathPattern.exec(text)) !== null) {
+    blockMaths.push({ index: match.index, math: match[1].trim(), length: match[0].length });
+  }
 
-  // Fix cases like "e$" -> "$e$" for single letters
-  processed = processed.replace(/([a-zA-Z])\$/g, '$$$1$');
-  processed = processed.replace(/\$([a-zA-Z])(?!\$)/g, '$$$1$');
-
-  // Fix cases like "\pi$" -> "$\pi$"
-  processed = processed.replace(/(\\[a-zA-Z]+)\$/g, '$$$1$');
-  processed = processed.replace(/\$(\\[a-zA-Z]+)(?!\$)/g, '$$$1$');
-
-  // Handle block math $$...$$
-  const parts = processed.split(/\$\$([^$]+)\$\$/);
-  const rendered = parts.map((part, index) => {
-    if (index % 2 === 1) {
-      return <BlockMath key={index} math={part.trim()} />;
-    }
-    // Handle inline math $...$
-    const inlineParts = part.split(/\$([^$]+)\$/);
-    return inlineParts.map((inlinePart, inlineIndex) => {
-      if (inlineIndex % 2 === 1) {
-        return <InlineMath key={`${index}-${inlineIndex}`} math={inlinePart.trim()} />;
-      }
-      return inlinePart;
-    });
+  // Replace block math with placeholders
+  let processed = text;
+  blockMaths.reverse().forEach((bm, i) => {
+    processed = processed.slice(0, bm.index) + `__BLOCKMATH${i}__` + processed.slice(bm.index + bm.length);
   });
+
+  // Handle inline math $...$ (now that block math is removed)
+  const inlineMathPattern = /\$([^$]+)\$/g;
+  const inlineMaths = [];
+  while ((match = inlineMathPattern.exec(processed)) !== null) {
+    inlineMaths.push({ index: match.index, math: match[1].trim(), length: match[0].length });
+  }
+
+  // Replace inline math with placeholders
+  inlineMaths.reverse().forEach((im, i) => {
+    processed = processed.slice(0, im.index) + `__INLINEMATH${i}__` + processed.slice(im.index + im.length);
+  });
+
+  // Now render by replacing placeholders with actual math components
+  const parts = processed.split(/__(BLOCKMATH|INLINEMATH)(\d+)__/g);
+  const rendered = parts.map((part, index) => {
+    if (part === 'BLOCKMATH') {
+      const mathIndex = parseInt(parts[index + 1]);
+      return <BlockMath key={`block-${mathIndex}`} math={blockMaths[mathIndex].math} />;
+    }
+    if (part === 'INLINEMATH') {
+      const mathIndex = parseInt(parts[index + 1]);
+      return <InlineMath key={`inline-${mathIndex}`} math={inlineMaths[mathIndex].math} />;
+    }
+    if (/^\d+$/.test(part)) return null; // Skip the index numbers
+    return part;
+  }).filter(Boolean);
 
   return <p className="mb-2 last:mb-0">{rendered}</p>;
 };
