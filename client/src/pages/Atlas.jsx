@@ -524,7 +524,7 @@ const Atlas = () => {
         </header>
 
         <main className="grid min-h-[680px] grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.8fr)]">
-          <section className="atlas-map-card flex min-h-[520px] flex-col overflow-hidden rounded-[26px] border border-white/60 bg-white shadow-2xl shadow-slate-950/15">
+          <section className="atlas-map-card relative isolate z-0 flex min-h-[520px] flex-col overflow-hidden rounded-[26px] border border-white/60 bg-white shadow-2xl shadow-slate-950/15">
             <div className="border-b border-slate-100 p-4 sm:p-5">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                 <div>
