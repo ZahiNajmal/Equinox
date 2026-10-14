@@ -2,59 +2,9 @@ import { useState } from "react";
 import api from "../utils/api";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { InlineMath, BlockMath } from "react-katex";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
-
-const CustomParagraph = ({ children }) => {
-  if (typeof children !== 'string') {
-    return <p className="mb-2 last:mb-0">{children}</p>;
-  }
-
-  let text = children;
-
-  // Handle block math $$...$$ first (must be before inline math)
-  const blockMathPattern = /\$\$([^$]+)\$\$/g;
-  const blockMaths = [];
-  let match;
-  while ((match = blockMathPattern.exec(text)) !== null) {
-    blockMaths.push({ index: match.index, math: match[1].trim(), length: match[0].length });
-  }
-
-  // Replace block math with placeholders
-  let processed = text;
-  blockMaths.reverse().forEach((bm, i) => {
-    processed = processed.slice(0, bm.index) + `__BLOCKMATH${i}__` + processed.slice(bm.index + bm.length);
-  });
-
-  // Handle inline math $...$ (now that block math is removed)
-  const inlineMathPattern = /\$([^$]+)\$/g;
-  const inlineMaths = [];
-  while ((match = inlineMathPattern.exec(processed)) !== null) {
-    inlineMaths.push({ index: match.index, math: match[1].trim(), length: match[0].length });
-  }
-
-  // Replace inline math with placeholders
-  inlineMaths.reverse().forEach((im, i) => {
-    processed = processed.slice(0, im.index) + `__INLINEMATH${i}__` + processed.slice(im.index + im.length);
-  });
-
-  // Now render by replacing placeholders with actual math components
-  const parts = processed.split(/__(BLOCKMATH|INLINEMATH)(\d+)__/g);
-  const rendered = parts.map((part, index) => {
-    if (part === 'BLOCKMATH') {
-      const mathIndex = parseInt(parts[index + 1]);
-      return <BlockMath key={`block-${mathIndex}`} math={blockMaths[mathIndex].math} />;
-    }
-    if (part === 'INLINEMATH') {
-      const mathIndex = parseInt(parts[index + 1]);
-      return <InlineMath key={`inline-${mathIndex}`} math={inlineMaths[mathIndex].math} />;
-    }
-    if (/^\d+$/.test(part)) return null; // Skip the index numbers
-    return part;
-  }).filter(Boolean);
-
-  return <p className="mb-2 last:mb-0">{rendered}</p>;
-};
 
 const CustomHeading = ({ level, children }) => {
   const baseClasses = "font-bold mb-2 mt-4";
@@ -66,7 +16,8 @@ const CustomHeading = ({ level, children }) => {
     5: "text-sm",
     6: "text-xs",
   };
-  return React.createElement(`h${level}`, { className: `${baseClasses} ${sizeClasses[level]}` }, children);
+  const Heading = `h${level}`;
+  return <Heading className={`${baseClasses} ${sizeClasses[level]}`}>{children}</Heading>;
 };
 
 export default function Mentor() {
@@ -85,14 +36,18 @@ export default function Mentor() {
     setLoading(true);
 
     try {
-      // The API helper adds the user's auth token and uses /api on Render.
       const { data } = await api.post("/ai/qa", {
         message: question,
         level: "intermediate",
       });
       setMessages((current) => [
         ...current,
-        { role: "assistant", content: data?.reply || "I couldn't make a reply. Please try again." },
+        {
+          role: "assistant",
+          content: typeof data?.reply === "string"
+            ? data.reply
+            : "I couldn't make a reply. Please try again.",
+        },
       ]);
     } catch (error) {
       console.error("Mentor request failed", error.response?.status || error.message);
@@ -134,9 +89,10 @@ export default function Mentor() {
                   <div className="whitespace-pre-wrap">{message.content}</div>
                 ) : (
                   <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
+                    remarkPlugins={[remarkGfm, remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
                     components={{
-                      p: CustomParagraph,
+                      p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
                       h1: ({ children }) => <CustomHeading level={1}>{children}</CustomHeading>,
                       h2: ({ children }) => <CustomHeading level={2}>{children}</CustomHeading>,
                       h3: ({ children }) => <CustomHeading level={3}>{children}</CustomHeading>,
@@ -145,13 +101,17 @@ export default function Mentor() {
                       h6: ({ children }) => <CustomHeading level={6}>{children}</CustomHeading>,
                       strong: ({ children }) => <strong className="font-bold">{children}</strong>,
                       em: ({ children }) => <em className="italic">{children}</em>,
-                      code: ({ inline, children }) =>
-                        inline ? (
-                          <code className="bg-gray-200 px-1 py-0.5 rounded text-sm">{children}</code>
+                      code: ({ className, children, ...props }) => {
+                        const isBlock = Boolean(className?.includes("language-"));
+                        return isBlock ? (
+                          <code className={`${className ?? ""} block`} {...props}>{children}</code>
                         ) : (
-                          <code className="block bg-gray-200 p-2 rounded text-sm overflow-x-auto">{children}</code>
-                        ),
-                      pre: ({ children }) => <pre className="bg-gray-800 text-white p-4 rounded-lg overflow-x-auto">{children}</pre>,
+                          <code className="bg-gray-200 px-1 py-0.5 rounded text-sm" {...props}>{children}</code>
+                        );
+                      },
+                      pre: ({ children }) => (
+                        <pre className="bg-gray-800 text-white p-4 rounded-lg overflow-x-auto mb-2">{children}</pre>
+                      ),
                       ul: ({ children }) => <ul className="list-disc list-inside mb-2">{children}</ul>,
                       ol: ({ children }) => <ol className="list-decimal list-inside mb-2">{children}</ol>,
                       li: ({ children }) => <li className="mb-1">{children}</li>,
@@ -178,12 +138,7 @@ export default function Mentor() {
                       td: ({ children }) => <td className="px-4 py-2">{children}</td>,
                       del: ({ children }) => <del className="line-through text-gray-500">{children}</del>,
                       input: ({ checked, type, disabled }) => (
-                        <input
-                          type={type}
-                          checked={checked}
-                          disabled={disabled}
-                          className="mr-2"
-                        />
+                        <input type={type} checked={checked} disabled={disabled} readOnly className="mr-2" />
                       ),
                     }}
                   >
