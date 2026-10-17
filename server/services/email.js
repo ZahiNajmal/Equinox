@@ -1,40 +1,23 @@
 // server/services/email.js
-// Gmail SMTP sender + retryable queue worker for student level-up reports.
-// Credentials are read only from server environment variables.
-const nodemailer = require("nodemailer");
+// EmailJS HTTPS sender + retryable queue worker for level-up reports.
+// Keep all EmailJS keys in server environment variables, never in frontend code.
+const axios = require("axios");
 
 const MAX_ATTEMPTS = 8;
 const EMAIL_BATCH_SIZE = 5;
+const EMAILJS_SEND_URL = "https://api.emailjs.com/api/v1.0/email/send";
 const XP_PER_LEVEL = Math.max(1, Number(process.env.XP_PER_LEVEL || 250));
 let workerStarted = false;
-let transport;
 let warningLogged = false;
 let workerBusy = false;
 
 function isEmailConfigured() {
-  return Boolean(process.env.EMAIL_USER && process.env.EMAIL_APP_PASSWORD);
-}
-
-function getTransport() {
-  if (!isEmailConfigured()) return null;
-  if (transport) return transport;
-
-  const host = process.env.EMAIL_HOST || "smtp.gmail.com";
-  const port = Number(process.env.EMAIL_PORT || 465);
-  const secure = process.env.EMAIL_SECURE
-    ? process.env.EMAIL_SECURE.toLowerCase() === "true"
-    : port === 465;
-
-  transport = nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_APP_PASSWORD,
-    },
-  });
-  return transport;
+  return Boolean(
+    process.env.EMAILJS_SERVICE_ID &&
+    process.env.EMAILJS_TEMPLATE_ID &&
+    process.env.EMAILJS_PUBLIC_KEY &&
+    process.env.EMAILJS_PRIVATE_KEY
+  );
 }
 
 function escapeHtml(value) {
@@ -137,6 +120,32 @@ function buildReportText({ user, job, activities }) {
   return `Congratulations, ${user.username || "Student"}!\n\nYou reached Level ${level} (from Level ${previousLevel}) in Equinox.\nTotal XP: ${totalXp}\n\nRecent activity:\n${rows || "Keep learning—your next achievement is on its way."}\n\nYou are receiving this report because you opted in to Equinox level-up emails.`;
 }
 
+async function sendEmailJs({ toEmail, toName, subject, html, text }) {
+  const payload = {
+    service_id: process.env.EMAILJS_SERVICE_ID,
+    template_id: process.env.EMAILJS_TEMPLATE_ID,
+    user_id: process.env.EMAILJS_PUBLIC_KEY,
+    accessToken: process.env.EMAILJS_PRIVATE_KEY,
+    template_params: {
+      to_email: toEmail,
+      to_name: toName,
+      subject,
+      html_report: html,
+      text_report: text,
+    },
+  };
+
+  try {
+    await axios.post(EMAILJS_SEND_URL, payload, {
+      headers: { "Content-Type": "application/json" },
+      timeout: 20000,
+    });
+  } catch (error) {
+    const status = error.response?.status;
+    throw new Error(status ? `EmailJS returned HTTP ${status}` : `EmailJS request failed: ${error.code || error.message}`);
+  }
+}
+
 async function enqueueLevelUpReport(db, { userId, previousLevel, newLevel, xp }) {
   if (!(Number(newLevel) > Number(previousLevel))) return;
   try {
@@ -153,7 +162,6 @@ async function enqueueLevelUpReport(db, { userId, previousLevel, newLevel, xp })
       [userId, previousLevel, newLevel, Math.max(0, Number(xp || 0))]
     );
   } catch (error) {
-    // Email queue failures must not undo a student's XP or level update.
     console.error("Could not queue level-up report", error.message);
   }
 }
@@ -188,7 +196,7 @@ async function claimJobs(db) {
   }
 }
 
-async function sendQueuedReport(db, job, mailer) {
+async function sendQueuedReport(db, job) {
   try {
     const userResult = await db.query(
       "SELECT username, email, xp, level, email_reports_enabled FROM users WHERE id = $1",
@@ -209,14 +217,14 @@ async function sendQueuedReport(db, job, mailer) {
       [job.user_id]
     );
     const activities = activityResult.rows || [];
-    const sender = process.env.EMAIL_FROM || `Equinox <${process.env.EMAIL_USER}>`;
+    const subject = `Equinox milestone: you reached Level ${job.new_level}`;
 
-    await mailer.sendMail({
-      from: sender,
-      to: user.email,
-      subject: `Equinox milestone: you reached Level ${job.new_level}`,
-      text: buildReportText({ user, job, activities }),
+    await sendEmailJs({
+      toEmail: user.email,
+      toName: user.username || "Student",
+      subject,
       html: buildReportHtml({ user, job, activities }),
+      text: buildReportText({ user, job, activities }),
     });
 
     await db.query(
@@ -237,7 +245,7 @@ async function processQueue(db) {
   if (workerBusy) return;
   if (!isEmailConfigured()) {
     if (!warningLogged) {
-      console.warn("Level-up reports are queued; set EMAIL_USER and EMAIL_APP_PASSWORD to enable email delivery.");
+      console.warn("Level-up reports are queued; set EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, EMAILJS_PUBLIC_KEY, and EMAILJS_PRIVATE_KEY to enable HTTPS email delivery.");
       warningLogged = true;
     }
     return;
@@ -246,9 +254,11 @@ async function processQueue(db) {
   workerBusy = true;
   try {
     const jobs = await claimJobs(db);
-    if (!jobs.length) return;
-    const mailer = getTransport();
-    for (const job of jobs) await sendQueuedReport(db, job, mailer);
+    for (let index = 0; index < jobs.length; index += 1) {
+      await sendQueuedReport(db, jobs[index]);
+      // EmailJS documents a 1-request-per-second API limit.
+      if (index < jobs.length - 1) await new Promise((resolve) => setTimeout(resolve, 1100));
+    }
   } catch (error) {
     console.error("Level-up email worker error", error.message);
   } finally {

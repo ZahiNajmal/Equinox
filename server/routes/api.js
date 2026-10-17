@@ -67,7 +67,7 @@ router.post('/auth/signup', async (req, res) => {
 // LOGIN
 // -------------------
 router.post('/auth/login', async (req, res) => {
-  const { email = '', password = '' } = req.body || {};
+  const { email = '', password = '', emailReportPreference = 'keep' } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'Invalid input' });
 
   try {
@@ -77,6 +77,13 @@ router.post('/auth/login', async (req, res) => {
 
     const ok = bcrypt.compareSync(password, user.password);
     if (!ok) return res.status(400).json({ error: 'Invalid credentials' });
+
+    if (emailReportPreference === 'enable' || emailReportPreference === 'disable') {
+      await req.db.query(
+        'UPDATE users SET email_reports_enabled = $1 WHERE id = $2',
+        [emailReportPreference === 'enable', user.id]
+      );
+    }
 
     const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token });

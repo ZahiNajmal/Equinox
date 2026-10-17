@@ -7,6 +7,7 @@ import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
 export default function SignIn() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [emailReportPreference, setEmailReportPreference] = useState("keep");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
@@ -15,7 +16,11 @@ export default function SignIn() {
     e.preventDefault();
     setError("");
     try {
-      const res = await api.post("/auth/login", { email: email.trim().toLowerCase(), password });
+      const res = await api.post("/auth/login", {
+        email: email.trim().toLowerCase(),
+        password,
+        emailReportPreference,
+      });
       localStorage.setItem("token", res.data.token);
       window.location.href = "/";
     } catch (err) {
@@ -57,6 +62,22 @@ export default function SignIn() {
             >
               {showPassword ? <EyeSlashIcon className="w-6 h-6" /> : <EyeIcon className="w-6 h-6" />}
             </button>
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="email-report-preference" className="block text-sm font-semibold text-gray-700">
+              Level-up email reports
+            </label>
+            <select
+              id="email-report-preference"
+              value={emailReportPreference}
+              onChange={(e) => setEmailReportPreference(e.target.value)}
+              className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-600 focus:outline-none text-base"
+            >
+              <option value="keep">Keep my current setting</option>
+              <option value="enable">Enable reports</option>
+              <option value="disable">Turn reports off</option>
+            </select>
           </div>
 
           <button
