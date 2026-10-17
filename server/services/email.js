@@ -1,6 +1,6 @@
 // server/services/email.js
-// EmailJS HTTPS sender + retryable queue worker for level-up reports.
-// Keep all EmailJS keys in server environment variables, never in frontend code.
+// EmailJS HTTPS sender + retryable queue worker.
+// Keep EmailJS keys in Render/server environment variables, never in frontend code.
 const axios = require("axios");
 
 const MAX_ATTEMPTS = 8;
@@ -149,10 +149,7 @@ async function sendEmailJs({ toEmail, toName, subject, html, text }) {
 async function enqueueLevelUpReport(db, { userId, previousLevel, newLevel, xp }) {
   if (!(Number(newLevel) > Number(previousLevel))) return;
   try {
-    const preference = await db.query(
-      "SELECT email_reports_enabled FROM users WHERE id = $1",
-      [userId]
-    );
+    const preference = await db.query("SELECT email_reports_enabled FROM users WHERE id = $1", [userId]);
     if (preference.rows[0]?.email_reports_enabled !== true) return;
 
     await db.query(
@@ -204,10 +201,7 @@ async function sendQueuedReport(db, job) {
     );
     const user = userResult.rows[0];
     if (user?.email_reports_enabled !== true) {
-      await db.query(
-        "UPDATE level_up_email_queue SET status = 'skipped', updated_at = NOW() WHERE id = $1",
-        [job.id]
-      );
+      await db.query("UPDATE level_up_email_queue SET status = 'skipped', updated_at = NOW() WHERE id = $1", [job.id]);
       return;
     }
     if (!user?.email) throw new Error("Student account has no email address");
@@ -231,6 +225,7 @@ async function sendQueuedReport(db, job) {
       "UPDATE level_up_email_queue SET status = 'sent', sent_at = NOW(), updated_at = NOW(), last_error = NULL WHERE id = $1",
       [job.id]
     );
+    console.log("Level-up email sent", { queueId: job.id });
   } catch (error) {
     const safeMessage = String(error.message || "Email delivery failed").slice(0, 500);
     await db.query(
@@ -245,7 +240,7 @@ async function processQueue(db) {
   if (workerBusy) return;
   if (!isEmailConfigured()) {
     if (!warningLogged) {
-      console.warn("Level-up reports are queued; set EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, EMAILJS_PUBLIC_KEY, and EMAILJS_PRIVATE_KEY to enable HTTPS email delivery.");
+      console.warn("Level-up reports are queued; set EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, EMAILJS_PUBLIC_KEY, and EMAILJS_PRIVATE_KEY to enable EmailJS HTTPS delivery.");
       warningLogged = true;
     }
     return;
