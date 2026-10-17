@@ -4,12 +4,12 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const xp = require('../services/xp');
-const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 const ai = require('../services/ai');
 const { fetchNews } = require('../services/news');
 const { enqueueLevelUpReport } = require('../services/email');
+const { createVaultProgressPdfBuffer } = require('../reports/vaultProgressPdf');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'equinox-secret-key-2025-change-in-production';
 
@@ -295,142 +295,30 @@ router.get('/experiments', (req, res) => res.json([
 ]));
 
 // -------------------
-// PDF EXPORT HELPERS
-// -------------------
-const ROUTE_LABELS = { '/': 'Dashboard', '/atlas': 'Atlas Page', '/mentor': 'Mentor Page', '/prisma': 'Prisma Page', '/insight': 'Insight Page', '/codex': 'Codex Page', '/sdg': 'SDG Page', '/quiz': 'Quiz Page', '/vault': 'Vault Page' };
-
-function prettyRoute(pathname) {
-  if (!pathname) return '';
-  const raw = pathname.split('?')[0].split('#')[0];
-  const normalized = raw.length > 1 ? raw.replace(/\/$/, '') : raw;
-  if (ROUTE_LABELS[normalized]) return ROUTE_LABELS[normalized];
-  return normalized.replace(/^\//, '').split('/').filter(Boolean).map(seg => seg.replace(/[-_]+/g, ' ')).map(seg => seg.charAt(0).toUpperCase() + seg.slice(1)).join(' / ') + ' Page';
-}
-
-function formatProgressActivityRow(row) {
-  const type = (row?.type || '').toString();
-  const desc = (row?.description || '').toString();
-  if (type.startsWith('interaction.pageview:')) {
-    return { title: `Visited ${prettyRoute(type.replace('interaction.pageview:', ''))}`, meta: 'Page visit' };
-  }
-  if (type.startsWith('sdg.reflection:') || desc.toLowerCase().includes('sdg reflection')) {
-    return { title: desc || 'Saved SDG reflection', meta: 'Reflection' };
-  }
-  if (type === 'interaction.activeMinute') return { title: desc || 'Stayed active in the app', meta: 'Engagement' };
-  if (type.startsWith('interaction.quiz')) return { title: desc || 'Quiz activity', meta: 'Quiz' };
-  return { title: desc || 'Completed activity', meta: type ? type.split(':')[0] : '' };
-}
-
-function formatDate(value) {
-  if (!value) return '';
-  const d = new Date(value);
-  return isNaN(d.getTime()) ? String(value) : d.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
-}
-
-// -------------------
-// VAULT EXPORT (FULL VERSION)
+// VAULT PROGRESS PDF EXPORT
 // -------------------
 router.get('/vault/export', authMiddleware, async (req, res) => {
   try {
     const userRes = await req.db.query('SELECT username, xp, level FROM users WHERE id = $1', [req.userId]);
     const user = userRes.rows[0] || { username: req.username, xp: 0, level: 1 };
 
-    const activityRes = await req.db.query("SELECT id, type, description, xp, date FROM progress WHERE user_id = $1 AND type != 'interaction.click' ORDER BY date DESC LIMIT 250", [req.userId]);
-    const activity = activityRes.rows || [];
+    const activityRes = await req.db.query(
+      "SELECT id, type, description, xp, date FROM progress WHERE user_id = $1 AND type != 'interaction.click' ORDER BY date DESC LIMIT 250",
+      [req.userId]
+    );
+    const reflectionsRes = await req.db.query(
+      'SELECT id, sdg_id, reflection, evidence, date FROM missions WHERE user_id = $1 ORDER BY date DESC LIMIT 100',
+      [req.userId]
+    );
 
-    const reflectionsRes = await req.db.query('SELECT id, sdg_id, reflection, evidence, date FROM missions WHERE user_id = $1 ORDER BY date DESC LIMIT 100', [req.userId]);
-    const reflections = reflectionsRes.rows || [];
-
-    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    const pdfBuffer = await createVaultProgressPdfBuffer({
+      user,
+      activity: activityRes.rows || [],
+      reflections: reflectionsRes.rows || [],
+    });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=equinox-progress-${new Date().toISOString().slice(0, 10)}.pdf`);
-    doc.pipe(res);
-
-    // Header
-    const pageWidth = doc.page.width;
-    doc.save().rect(0, 0, pageWidth, 90).fill('#7c3aed');
-    doc.fillColor('#ffffff').fontSize(22).text('Equinox Progress Report', 50, 28);
-    doc.fontSize(11).text(`Generated: ${formatDate(new Date().toISOString())}`, 50, 58).restore();
-    doc.moveDown(4);
-
-    // User Profile Card
-    const cardX = 50, cardW = pageWidth - 100, cardY = doc.y;
-    doc.save().roundedRect(cardX, cardY, cardW, 64, 10).fill('#f9fafb').restore();
-    doc.fillColor('#111827').fontSize(12).text('Username', cardX + 14, cardY + 12);
-    doc.fontSize(16).fillColor('#6d28d9').text(user.username || 'Student', cardX + 14, cardY + 30);
-    doc.fillColor('#374151').fontSize(11).text(`Level: ${user.level}`, cardX + cardW - 160, cardY + 14, { align: 'right', width: 140 });
-    doc.text(`Total XP: ${user.xp}`, cardX + cardW - 160, cardY + 34, { align: 'right', width: 140 });
-
-    doc.y = cardY + 80;
-    doc.fillColor('#111827').fontSize(14).text('Activity History');
-    doc.moveDown(0.5);
-
-    // Activity Table
-    let y = doc.y;
-    const drawHead = () => {
-      doc.save().rect(50, y, cardW, 20).fill('#f3f4f6').fillColor('#374151').fontSize(10);
-      doc.text('DATE', 56, y + 6).text('ACTIVITY', 196, y + 6).text('XP', 50 + cardW - 60, y + 6, { width: 50, align: 'right' }).restore();
-      y += 26;
-    };
-    drawHead();
-
-    for (const row of activity) {
-      if (y > 750) { doc.addPage(); y = 50; drawHead(); }
-      const info = formatProgressActivityRow(row);
-      doc.save().strokeColor('#e5e7eb').moveTo(50, y + 20).lineTo(50 + cardW, y + 20).stroke().restore();
-      doc.fillColor('#111827').fontSize(9).text(formatDate(row.date), 56, y + 5);
-      doc.text(info.title, 196, y + 5, { width: 280 });
-      doc.fillColor('#6d28d9').text(`+${row.xp}`, 50 + cardW - 60, y + 5, { align: 'right' });
-      y += 25;
-    }
-
-    // --- NEW SECTION: SDG REFLECTIONS ---
-      if (reflections.length > 0) {
-        if (y > 650) { doc.addPage(); y = 50; } else { y += 40; }
-        
-        // Use the full width of the card to prevent text wrapping
-        doc.fillColor('#111827')
-          .font('Helvetica-Bold')
-          .fontSize(16)
-          .text('SDG Reflections', 50, y, { width: cardW, align: 'left' });
-        
-        doc.moveDown(0.8);
-        y = doc.y;
-
-      for (const ref of reflections) {
-        // Calculate text height for dynamic box sizing
-        const reflectionText = ref.reflection || 'No content';
-        const textHeight = doc.heightOfString(reflectionText, { width: cardW - 30 });
-        const boxHeight = Math.max(50, textHeight + 35);
-
-        // Page break check
-        if (y + boxHeight > 750) { doc.addPage(); y = 50; }
-
-        // Styled Reflection Box
-        doc.save()
-           .roundedRect(50, y, cardW, boxHeight, 8)
-           .fill('#fdfaff')
-           .strokeColor('#ddd6fe')
-           .stroke()
-           .restore();
-
-        // Goal Title
-        doc.fillColor('#7c3aed').fontSize(10).font('Helvetica-Bold')
-           .text(`Goal ${ref.sdg_id}`, 65, y + 10);
-        
-        // Date (Right Aligned)
-        doc.fillColor('#9ca3af').fontSize(8).font('Helvetica')
-           .text(formatDate(ref.date), cardX + cardW - 160, y + 10, { align: 'right', width: 145 });
-
-        // Content
-        doc.fillColor('#374151').fontSize(10).font('Helvetica')
-           .text(reflectionText, 65, y + 25, { width: cardW - 30 });
-
-        y += boxHeight + 10;
-      }
-    }
-
-    doc.end();
+    res.send(pdfBuffer);
   } catch (err) {
     console.error('PDF error:', err);
     res.status(500).send('Error');

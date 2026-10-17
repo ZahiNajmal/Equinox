@@ -2,6 +2,7 @@
 // EmailJS HTTPS sender + retryable queue worker.
 // Keep EmailJS keys in Render/server environment variables, never in frontend code.
 const axios = require("axios");
+const { createVaultProgressPdfBuffer } = require("../reports/vaultProgressPdf");
 
 const MAX_ATTEMPTS = 8;
 const EMAIL_BATCH_SIZE = 5;
@@ -120,7 +121,7 @@ function buildReportText({ user, job, activities }) {
   return `Congratulations, ${user.username || "Student"}!\n\nYou reached Level ${level} (from Level ${previousLevel}) in Equinox.\nTotal XP: ${totalXp}\n\nRecent activity:\n${rows || "Keep learning—your next achievement is on its way."}\n\nYou are receiving this report because you opted in to Equinox level-up emails.`;
 }
 
-async function sendEmailJs({ toEmail, toName, subject, html, text }) {
+async function sendEmailJs({ toEmail, toName, subject, html, text, progressPdfBase64 }) {
   const payload = {
     service_id: process.env.EMAILJS_SERVICE_ID,
     template_id: process.env.EMAILJS_TEMPLATE_ID,
@@ -132,6 +133,8 @@ async function sendEmailJs({ toEmail, toName, subject, html, text }) {
       subject,
       html_report: html,
       text_report: text,
+      progress_pdf: progressPdfBase64,
+      new_level: String(subject.match(/Level (\d+)/)?.[1] || ""),
     },
   };
 
@@ -207,11 +210,17 @@ async function sendQueuedReport(db, job) {
     if (!user?.email) throw new Error("Student account has no email address");
 
     const activityResult = await db.query(
-      "SELECT description, xp, date FROM progress WHERE user_id = $1 AND type != 'interaction.click' ORDER BY date DESC LIMIT 5",
+      "SELECT id, type, description, xp, date FROM progress WHERE user_id = $1 AND type != 'interaction.click' ORDER BY date DESC LIMIT 250",
+      [job.user_id]
+    );
+    const reflectionResult = await db.query(
+      "SELECT id, sdg_id, reflection, evidence, date FROM missions WHERE user_id = $1 ORDER BY date DESC LIMIT 100",
       [job.user_id]
     );
     const activities = activityResult.rows || [];
+    const reflections = reflectionResult.rows || [];
     const subject = `Equinox milestone: you reached Level ${job.new_level}`;
+    const pdfBuffer = await createVaultProgressPdfBuffer({ user, activity: activities, reflections });
 
     await sendEmailJs({
       toEmail: user.email,
@@ -219,6 +228,7 @@ async function sendQueuedReport(db, job) {
       subject,
       html: buildReportHtml({ user, job, activities }),
       text: buildReportText({ user, job, activities }),
+      progressPdfBase64: `data:application/pdf;base64,${pdfBuffer.toString("base64")}`,
     });
 
     await db.query(
