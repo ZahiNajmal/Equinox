@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const ai = require('../services/ai');
 const { fetchNews } = require('../services/news');
+const { enqueueLevelUpReport } = require('../services/email');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'equinox-secret-key-2025-change-in-production';
 
@@ -33,23 +34,25 @@ const authMiddleware = (req, res, next) => {
 // SIGNUP
 // -------------------
 router.post('/auth/signup', async (req, res) => {
-  const { username = '', email = '', password = '' } = req.body || {};
-  if (!username.trim() || !email.trim() || !password || password.length < 6) {
-    return res.status(400).json({ error: 'Invalid input' });
+  const { username = '', email = '', password = '', emailReportsEnabled = false } = req.body || {};
+  const normalizedEmail = email.trim().toLowerCase();
+  const isGmailAddress = /^[^\s@]+@(?:gmail\.com|googlemail\.com)$/i.test(normalizedEmail);
+  if (!username.trim() || !isGmailAddress || !password || password.length < 6) {
+    return res.status(400).json({ error: 'Enter a valid Gmail address, username, and password (at least 6 characters).' });
   }
 
   try {
     const exists = await req.db.query(
       'SELECT id FROM users WHERE lower(email) = $1 OR lower(username) = $2',
-      [email.toLowerCase().trim(), username.toLowerCase().trim()]
+      [normalizedEmail, username.toLowerCase().trim()]
     );
 
     if (exists.rows.length > 0) return res.status(400).json({ error: 'User exists' });
 
     const hash = await bcrypt.hash(password, 10);
     const result = await req.db.query(
-      'INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id',
-      [username.trim(), email.toLowerCase().trim(), hash]
+      'INSERT INTO users (username, email, password, email_reports_enabled) VALUES ($1, $2, $3, $4) RETURNING id',
+      [username.trim(), normalizedEmail, hash, emailReportsEnabled === true]
     );
 
     const token = jwt.sign({ id: result.rows[0].id, username: username.trim() }, JWT_SECRET, { expiresIn: '30d' });
@@ -180,13 +183,17 @@ router.post('/user/interaction', authMiddleware, async (req, res) => {
     await req.db.query('UPDATE users SET xp = xp + $1 WHERE id = $2', [xpToAdd, req.userId]);
     const updatedRes = await req.db.query('SELECT username, xp, level FROM users WHERE id = $1', [req.userId]);
     const updated = updatedRes.rows[0];
+    const previousLevel = Number(updated.level || 1);
     const newLevel = xp.levelFromXp(updated.xp || 0);
-    if ((updated.level || 1) !== newLevel) {
+    if (previousLevel !== newLevel) {
       await req.db.query('UPDATE users SET level = $1 WHERE id = $2', [newLevel, req.userId]);
       updated.level = newLevel;
     }
     await req.db.query('INSERT INTO progress (user_id, type, description, xp) VALUES ($1, $2, $3, $4)', [req.userId, type, description, xpToAdd]);
     await req.db.query('COMMIT');
+    if (newLevel > previousLevel) {
+      await enqueueLevelUpReport(req.db, { userId: req.userId, previousLevel, newLevel, xp: Number(updated.xp || 0) });
+    }
     return res.json({ xpAdded: xpToAdd, user: updated });
   } catch (err) {
     await req.db.query('ROLLBACK');
@@ -215,13 +222,17 @@ router.post('/sdg/reflection', authMiddleware, async (req, res) => {
     await req.db.query('UPDATE users SET xp = xp + $1 WHERE id = $2', [XP_FOR_REFLECTION, req.userId]);
     const updatedRes = await req.db.query('SELECT username, xp, level FROM users WHERE id = $1', [req.userId]);
     const updated = updatedRes.rows[0];
+    const previousLevel = Number(updated.level || 1);
     const newLevel = xp.levelFromXp(updated.xp || 0);
-    if (updated.level !== newLevel) {
+    if (previousLevel !== newLevel) {
       await req.db.query('UPDATE users SET level = $1 WHERE id = $2', [newLevel, req.userId]);
       updated.level = newLevel;
     }
     await req.db.query('INSERT INTO progress (user_id, type, description, xp) VALUES ($1, $2, $3, $4)', [req.userId, type, description, XP_FOR_REFLECTION]);
     await req.db.query('COMMIT');
+    if (newLevel > previousLevel) {
+      await enqueueLevelUpReport(req.db, { userId: req.userId, previousLevel, newLevel, xp: Number(updated.xp || 0) });
+    }
     return res.json({ xpAdded: XP_FOR_REFLECTION, user: updated });
   } catch (err) {
     await req.db.query('ROLLBACK');

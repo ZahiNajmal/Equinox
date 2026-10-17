@@ -45,6 +45,8 @@ pool.connect(async (err, client, release) => {
     console.error('⚠️  Database initialization warning:', initErr.message);
     // Don't exit - tables might already exist
   }
+  // Begin sending queued level-up reports after the schema has been initialized.
+  require('./services/email').startEmailWorker(pool);
 });
 
 // --- 3. MAKE POOL ACCESSIBLE TO ROUTES ---

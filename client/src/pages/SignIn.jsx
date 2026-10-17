@@ -15,7 +15,7 @@ export default function SignIn() {
     e.preventDefault();
     setError("");
     try {
-      const res = await api.post("/auth/login", { email, password });
+      const res = await api.post("/auth/login", { email: email.trim().toLowerCase(), password });
       localStorage.setItem("token", res.data.token);
       window.location.href = "/";
     } catch (err) {
@@ -32,7 +32,7 @@ export default function SignIn() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <input
             type="email"
-            placeholder="Email"
+            placeholder="Gmail address"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="w-full px-6 py-4 border-2 border-gray-300 rounded-xl focus:border-blue-600 focus:outline-none text-lg"

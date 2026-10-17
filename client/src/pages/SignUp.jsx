@@ -8,6 +8,7 @@ export default function SignUp() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [emailReportsEnabled, setEmailReportsEnabled] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
@@ -15,8 +16,18 @@ export default function SignUp() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@(?:gmail\.com|googlemail\.com)$/i.test(normalizedEmail)) {
+      setError("Please enter a valid Gmail address.");
+      return;
+    }
     try {
-      const res = await api.post("/auth/signup", { username, email, password });
+      const res = await api.post("/auth/signup", {
+        username: username.trim(),
+        email: normalizedEmail,
+        password,
+        emailReportsEnabled,
+      });
       localStorage.setItem("token", res.data.token);
       window.location.href = "/";
     } catch (err) {
@@ -42,12 +53,22 @@ export default function SignUp() {
           />
           <input
             type="email"
-            placeholder="Email"
+            placeholder="Gmail address"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="w-full px-6 py-4 border-2 border-gray-300 rounded-xl focus:border-purple-600 focus:outline-none text-lg"
             required
           />
+
+          <label className="flex items-start gap-3 text-sm leading-6 text-gray-600">
+            <input
+              type="checkbox"
+              checked={emailReportsEnabled}
+              onChange={(e) => setEmailReportsEnabled(e.target.checked)}
+              className="mt-1 h-4 w-4 accent-purple-700"
+            />
+            <span>Email me a progress report when I reach a new level.</span>
+          </label>
           
           <div className="relative">
             <input
