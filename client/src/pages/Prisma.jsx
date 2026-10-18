@@ -517,8 +517,16 @@ export default function Prisma({ level = 1 }) {
             case 10: // Supply Chain Optimization
                 return { 
                     freqLabel: "Demand Variability (Low 0.01 - High 1.0)",
-                    ampLabel: "Storage Cost Index (10 - 100 Index)"
+                    ampLabel: "Storage Cost Index (10 - 100)"
                 };
+            case 11:
+                return { freqLabel: "Emissions Reduction Rate (0.01 - 1.0)", ampLabel: "Starting Emissions (10 - 100 units)" };
+            case 12:
+                return { freqLabel: "Transmission Rate (0.01 - 1.0)", ampLabel: "Initial Cases (10 - 100)" };
+            case 13:
+                return { freqLabel: "Sunlight Availability (0.01 - 1.0)", ampLabel: "Panel Area (10 - 100 m²)" };
+            case 14:
+                return { freqLabel: "Orbital Distance Factor (0.01 - 1.0)", ampLabel: "Planet Mass (10 - 100 units)" };
             case 1:
             case 2:
             case 3:
@@ -565,10 +573,14 @@ export default function Prisma({ level = 1 }) {
                     { id: 8, title: "Data Clustering Analysis (K-Means)", description: "Applying K-Means to identify natural groupings in multi-dimensional datasets.", tags: ["Data Science", "Statistics", "AI"] },
                     { id: 9, title: "Exoplanet Transit Detection", description: "Modeling stellar brightness reduction to estimate exoplanet size and orbit.", tags: ["Astronomy", "Physics", "Modeling"] },
                     { id: 10, title: "Supply Chain Optimization", description: "Simulating inventory and logistics costs to find the most efficient distribution network.", tags: ["Economics", "Engineering", "Logistics"] },
+                    { id: 11, title: "Climate Emissions Pathway", description: "Model how reduction effort changes emissions over a simulated period.", tags: ["Climate", "Environmental", "Mathematics"] },
+                    { id: 12, title: "Epidemic Spread Model", description: "Explore how transmission and starting cases affect an outbreak scenario.", tags: ["Biology", "Public Health", "Statistics"] },
+                    { id: 13, title: "Solar Panel Output", description: "Estimate clean-energy production from sunlight and panel area.", tags: ["Physics", "Energy", "Engineering"] },
+                    { id: 14, title: "Planetary Orbit Explorer", description: "Compare a planet's mass and orbital distance in a simplified orbit model.", tags: ["Astronomy", "Physics", "Space"] },
                 ];
                 setExperiments(mockData.map((experiment) => ({
                     ...experiment,
-                    requiredLevel: experiment.id <= 3 ? 1 : experiment.id <= 6 ? 4 : 7,
+                    requiredLevel: experiment.id <= 3 ? 1 : experiment.id <= 6 ? 4 : experiment.id <= 10 ? 7 : 11,
                 })));
 
             } catch (err) {
@@ -649,6 +661,38 @@ export default function Prisma({ level = 1 }) {
                     "Inventory Cost Risk": `${((amplitude/100) * frequency * 100).toFixed(1)}%`,
                     "Observation Time": new Date().toLocaleTimeString(),
                     "Simulation Duration": "2.2s"
+                };
+                break;
+            case 11:
+                mockOutput = {
+                    "Projected Emissions": `${(amplitude * (1 - frequency * 0.6)).toFixed(1)} units`,
+                    "Total Reduction": `${(amplitude * frequency * 0.6).toFixed(1)} units`,
+                    "Model Note": "Simplified educational scenario, not a real-world forecast",
+                    "Observation Time": new Date().toLocaleTimeString(),
+                };
+                break;
+            case 12:
+                mockOutput = {
+                    "Estimated Next-Period Cases": Math.round(amplitude * (1 + frequency * 1.8)),
+                    "Scenario Risk": `${Math.min(100, frequency * 100).toFixed(1)}%`,
+                    "Model Note": "Illustrative only; not medical advice or a real forecast",
+                    "Observation Time": new Date().toLocaleTimeString(),
+                };
+                break;
+            case 13:
+                mockOutput = {
+                    "Estimated Daily Energy": `${(amplitude * frequency * 4.5).toFixed(1)} kWh`,
+                    "Sunlight Factor": `${(frequency * 100).toFixed(1)}%`,
+                    "Model Note": "Simplified estimate; actual output depends on location and equipment",
+                    "Observation Time": new Date().toLocaleTimeString(),
+                };
+                break;
+            case 14:
+                mockOutput = {
+                    "Relative Orbital Period": `${Math.sqrt(Math.pow(1 / Math.max(frequency, 0.01), 3) / Math.max(amplitude / 50, 0.2)).toFixed(2)} model units`,
+                    "Orbital Distance Factor": frequency.toFixed(2),
+                    "Model Note": "Simplified educational model, not an ephemeris",
+                    "Observation Time": new Date().toLocaleTimeString(),
                 };
                 break;
             case 1:

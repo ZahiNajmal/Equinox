@@ -26,7 +26,11 @@ export const LEVEL_REWARDS = [
   { level: 8, title: "Atlas Population Insights", detail: "Reveal each selected place's population rank in the Atlas." },
   { level: 9, title: "Third quiz hint", detail: "Get one extra lifeline in each quiz." },
   { level: 10, title: "Sports & Games quizzes + Champion badge", detail: "Unlock a new quiz genre and celebrate reaching double digits." },
+  { level: 11, title: "Prisma Lab Pack III + Atlas bonus fact", detail: "Unlock four more simulations and an extra world fact." },
+  { level: 12, title: "Codex secret fact + all rewards complete", detail: "Reveal a bonus chemistry fact and finish the current Equinox reward track." },
 ];
+
+export const REWARD_TRACK_FINAL_LEVEL = Math.max(...LEVEL_REWARDS.map((reward) => reward.level));
 
 export function hintsPerQuiz(level) {
   const safeLevel = Math.max(1, Number(level) || 1);

@@ -19,6 +19,11 @@ import Quiz from "./pages/Quiz";
 
 function AppRoutes({ user, setUser }) {
   const location = useLocation();
+  const requestedPreviewLevel = Number(new URLSearchParams(location.search).get("previewLevel"));
+  const previewLevel = import.meta.env.DEV && Number.isInteger(requestedPreviewLevel) && requestedPreviewLevel >= 1
+    ? requestedPreviewLevel
+    : null;
+  const viewUser = user && previewLevel ? { ...user, level: previewLevel, xp: Math.max(Number(user.xp) || 0, (previewLevel - 1) * 250) } : user;
 
   useEngagementXP({
     enabled: !!user,
@@ -27,19 +32,22 @@ function AppRoutes({ user, setUser }) {
   });
 
   return (
-    <Routes>
-      <Route path="/signin" element={user ? <Navigate to="/" /> : <SignIn />} />
-      <Route path="/signup" element={user ? <Navigate to="/" /> : <SignUp />} />
-      <Route path="/" element={user ? <Dashboard user={user} /> : <Navigate to="/signin" />} />
-      <Route path="/atlas" element={user ? <Atlas level={user.level} /> : <Navigate to="/signin" />} />
-      <Route path="/mentor" element={user ? <Mentor /> : <Navigate to="/signin" />} />
-      <Route path="/prisma" element={user ? <Prisma level={user.level} /> : <Navigate to="/signin" />} />
-      <Route path="/insight" element={user ? <Insight /> : <Navigate to="/signin" />} />
-      <Route path="/codex" element={user ? <Codex /> : <Navigate to="/signin" />} />
-      <Route path="/sdg" element={user ? <SDG setUser={setUser} /> : <Navigate to="/signin" />} />
-      <Route path="/vault" element={user ? <Vault /> : <Navigate to="/signin" />} />
-      <Route path="/quiz" element={user ? <Quiz user={user} setUser={setUser} /> : <Navigate to="/signin" />} />
-    </Routes>
+    <>
+      {previewLevel !== null && <div role="status" className="bg-amber-300 px-4 py-2 text-center text-sm font-bold text-amber-950">Developer preview only: displaying Level {previewLevel}. This does not change your account or server permissions.</div>}
+      <Routes>
+        <Route path="/signin" element={user ? <Navigate to="/" /> : <SignIn />} />
+        <Route path="/signup" element={user ? <Navigate to="/" /> : <SignUp />} />
+        <Route path="/" element={user ? <Dashboard user={viewUser} /> : <Navigate to="/signin" />} />
+        <Route path="/atlas" element={user ? <Atlas level={viewUser.level} /> : <Navigate to="/signin" />} />
+        <Route path="/mentor" element={user ? <Mentor /> : <Navigate to="/signin" />} />
+        <Route path="/prisma" element={user ? <Prisma level={viewUser.level} /> : <Navigate to="/signin" />} />
+        <Route path="/insight" element={user ? <Insight /> : <Navigate to="/signin" />} />
+        <Route path="/codex" element={user ? <Codex level={viewUser.level} /> : <Navigate to="/signin" />} />
+        <Route path="/sdg" element={user ? <SDG setUser={setUser} /> : <Navigate to="/signin" />} />
+        <Route path="/vault" element={user ? <Vault /> : <Navigate to="/signin" />} />
+        <Route path="/quiz" element={user ? <Quiz user={viewUser} setUser={setUser} /> : <Navigate to="/signin" />} />
+      </Routes>
+    </>
   );
 }
 

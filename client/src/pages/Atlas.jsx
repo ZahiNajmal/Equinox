@@ -659,6 +659,12 @@ const Atlas = ({ level = 1 }) => {
                 ) : (
                   <p className="mt-4 rounded-xl border border-violet-100 bg-violet-50 p-3 text-xs font-semibold text-violet-800">Unlock Atlas population insights at Level 8.</p>
                 )}
+                {currentLevel >= 11 && (
+                  <section className="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50 p-4">
+                    <div className="text-sm font-bold text-cyan-900">Level 11 Explorer Fact</div>
+                    <p className="mt-2 text-sm leading-6 text-cyan-950/80">Earth’s atmosphere does not end at a sharp edge: its uppermost region gradually thins into space, and some atmospheric particles travel hundreds of kilometres above the surface.</p>
+                  </section>
+                )}
               </div>
             ) : (
               <div className="flex min-h-[380px] flex-col items-center justify-center px-5 text-center">
@@ -703,4 +709,3 @@ const Atlas = ({ level = 1 }) => {
 };
 
 export default Atlas;
-
