@@ -467,7 +467,8 @@ const ExperimentVisualization = ({ selectedId, variables, isRunning }) => {
 };
 // --- END: Visualization Router ---
 
-export default function Prisma() {
+export default function Prisma({ level = 1 }) {
+    const currentLevel = Math.max(1, Number(level) || 1);
     const [experiments, setExperiments] = useState([]); 
     const [selected, setSelected] = useState(null);
     const [variables, setVariables] = useState({ frequency: 0.1, amplitude: 50 });
@@ -565,7 +566,10 @@ export default function Prisma() {
                     { id: 9, title: "Exoplanet Transit Detection", description: "Modeling stellar brightness reduction to estimate exoplanet size and orbit.", tags: ["Astronomy", "Physics", "Modeling"] },
                     { id: 10, title: "Supply Chain Optimization", description: "Simulating inventory and logistics costs to find the most efficient distribution network.", tags: ["Economics", "Engineering", "Logistics"] },
                 ];
-                setExperiments(mockData);
+                setExperiments(mockData.map((experiment) => ({
+                    ...experiment,
+                    requiredLevel: experiment.id <= 3 ? 1 : experiment.id <= 6 ? 4 : 7,
+                })));
 
             } catch (err) {
                 console.error("Error fetching experiments:", err);
@@ -705,15 +709,18 @@ export default function Prisma() {
                     {experiments.map((exp) => {
                         const { icon: Icon, color: iconColor } = getIcon(exp.tags);
                         const isSelected = selected && selected.id === exp.id;
+                        const isLocked = currentLevel < exp.requiredLevel;
                         return (
                             <div
                                 key={exp.id}
                                 onClick={() => {
+                                    if (isLocked) return;
                                     setSelected(exp);
                                     setVariables({ frequency: 0.1, amplitude: 50 }); // defaults
                                     setResult(null); // Clear result when new experiment is selected
                                 }}
-                                className={`relative bg-white rounded-2xl shadow-xl hover:shadow-2xl transition transform hover:-translate-y-2 cursor-pointer p-6 border-2 ${
+                                aria-disabled={isLocked}
+                                className={`relative bg-white rounded-2xl shadow-xl transition transform p-6 border-2 ${isLocked ? "cursor-not-allowed opacity-65" : "cursor-pointer hover:shadow-2xl hover:-translate-y-2"} ${
                                     isSelected 
                                         ? "border-blue-500 ring-4 ring-orange-300" // New gradient-themed selection style
                                         : "border-gray-100"
@@ -724,6 +731,8 @@ export default function Prisma() {
                                 
                                 <h3 className="text-xl font-bold text-gray-800 text-center mb-2">{exp.title || "Untitled"}</h3>
                                 <p className="text-gray-600 text-center mb-4 text-sm">{exp.description || "No description available."}</p>
+                                {isLocked && <p className="mb-3 text-center text-sm font-bold text-purple-700">Unlocks at Level {exp.requiredLevel}</p>}
+                                {!isLocked && exp.requiredLevel > 1 && <p className="mb-3 text-center text-xs font-semibold text-emerald-700">Level {exp.requiredLevel} Lab Pack unlocked</p>}
                                 <div className="flex flex-wrap gap-2 justify-center">
                                     {(exp.tags || []).map((tag) => (
                                         <span 

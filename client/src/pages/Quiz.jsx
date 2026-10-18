@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import api from "../utils/api";
+import { QUIZ_DIFFICULTIES, QUIZ_GENRES, hintsPerQuiz } from "../utils/progression";
 
 function decodeHtml(input = "") {
   try {
@@ -28,7 +29,8 @@ function newQuizId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-export default function Quiz({ setUser }) {
+export default function Quiz({ setUser, user }) {
+  const level = Math.max(1, Number(user?.level) || 1);
   const [status, setStatus] = useState("idle"); // idle | loading | inProgress | lose | complete
   const [questions, setQuestions] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -36,12 +38,18 @@ export default function Quiz({ setUser }) {
   const [correctCount, setCorrectCount] = useState(0);
   const [feedback, setFeedback] = useState("");
 
-  // XP is awarded once the user completes at least 5 questions.
-  // After that, XP increments as they complete more questions (so the Dashboard updates immediately).
+  // XP is awarded once the user completes all five questions.
   const [quizId, setQuizId] = useState(null);
-  const [awardedCorrect, setAwardedCorrect] = useState(0);
   const awardedCorrectRef = useRef(0);
   const [xpAdded, setXpAdded] = useState(0);
+  const [selectedGenre, setSelectedGenre] = useState("general");
+  const [selectedDifficulty, setSelectedDifficulty] = useState("easy");
+  const [hintsUsed, setHintsUsed] = useState(0);
+  const [hiddenOptions, setHiddenOptions] = useState([]);
+
+  const genre = QUIZ_GENRES.find((item) => item.id === selectedGenre) || QUIZ_GENRES[0];
+  const difficulty = QUIZ_DIFFICULTIES.find((item) => item.id === selectedDifficulty) || QUIZ_DIFFICULTIES[0];
+  const hintsAvailable = hintsPerQuiz(level);
 
   const currentQuestion = useMemo(() => {
     if (!questions || !Array.isArray(questions) || questions.length === 0) return null;
@@ -52,13 +60,17 @@ export default function Quiz({ setUser }) {
     setStatus("loading");
     setFeedback("");
     setXpAdded(0);
-    setAwardedCorrect(0);
     awardedCorrectRef.current = 0;
     setQuizId(newQuizId());
+    setHintsUsed(0);
+    setHiddenOptions([]);
 
     try {
-      const res = await fetch("https://opentdb.com/api.php?amount=5");
+      const params = new URLSearchParams({ amount: "5", category: String(genre.categoryId), difficulty: difficulty.id, type: "multiple" });
+      const res = await fetch(`https://opentdb.com/api.php?${params.toString()}`);
+      if (!res.ok) throw new Error(`Quiz provider returned HTTP ${res.status}`);
       const data = await res.json();
+      if (data?.response_code !== 0) throw new Error("No questions are available for that selection right now. Try another genre or difficulty.");
 
       const normalized = (data?.results || []).map((q, idx) => {
         const question = decodeHtml(q.question);
@@ -88,10 +100,11 @@ export default function Quiz({ setUser }) {
       setCurrentIndex(0);
       setTriesLeft(3);
       setCorrectCount(0);
+      setHiddenOptions([]);
       setStatus("inProgress");
-    } catch {
+    } catch (error) {
       setStatus("idle");
-      alert("Failed to fetch quiz questions");
+      alert(error?.message || "Failed to fetch quiz questions. Please try another selection.");
     }
   };
 
@@ -108,29 +121,38 @@ export default function Quiz({ setUser }) {
         quizId,
         correct,
         total,
+        difficulty: selectedDifficulty,
+        categoryId: genre.categoryId,
       });
 
-      const gained = res?.data?.xpAdded ?? Math.max(0, correct - awardedCorrectRef.current) * 20;
+      const gained = res?.data?.xpAdded ?? Math.max(0, correct - awardedCorrectRef.current) * difficulty.xpPerCorrect;
       setXpAdded((prev) => prev + gained);
       awardedCorrectRef.current = Math.max(awardedCorrectRef.current, correct);
-      setAwardedCorrect(awardedCorrectRef.current);
 
       if (res?.data?.user && typeof setUser === "function") {
         setUser((prev) => ({ ...(prev || {}), ...res.data.user }));
       }
     } catch {
-      // Non-fatal: still reflect XP locally for the session UI.
-      const gained = Math.max(0, correct - awardedCorrectRef.current) * 20;
-      setXpAdded((prev) => prev + gained);
-      awardedCorrectRef.current = Math.max(awardedCorrectRef.current, correct);
-      setAwardedCorrect(awardedCorrectRef.current);
+      // Do not claim XP was earned unless the server confirms it.
+      setFeedback("Your quiz finished, but XP could not be saved. Please check your connection and try again later.");
     }
   };
 
   const finishQuiz = async (finalCorrect) => {
     setStatus("complete");
     setFeedback("");
-    await awardXpProgress({ correct: finalCorrect, total: questions?.length || 10 });
+    await awardXpProgress({ correct: finalCorrect, total: questions?.length || 5 });
+  };
+
+  const useHint = () => {
+    if (!currentQuestion || hintsUsed >= hintsAvailable) return;
+    const wrongOptions = currentQuestion.options
+      .map((_, index) => index)
+      .filter((index) => index !== currentQuestion.correctIndex && !hiddenOptions.includes(index));
+    const toHide = shuffle(wrongOptions).slice(0, Math.min(2, wrongOptions.length));
+    setHiddenOptions((previous) => [...new Set([...previous, ...toHide])]);
+    setHintsUsed((previous) => previous + 1);
+    setFeedback("Hint used: two incorrect answers have been removed.");
   };
 
   const handleAnswer = async (pickedIndex) => {
@@ -143,19 +165,19 @@ export default function Quiz({ setUser }) {
       setCorrectCount(nextCorrect);
       setFeedback("Correct! Moving on...");
 
-      // Once they hit 5 completed questions, start awarding XP as they progress.
-      void awardXpProgress({ correct: nextCorrect, total: questions?.length || 10 });
-
       const nextIndex = currentIndex + 1;
       if (!questions || nextIndex >= questions.length) {
         await finishQuiz(nextCorrect);
         return;
       }
 
+      // The server only awards XP for a full five-question quiz.
+
       // Small delay feels nicer; also prevents rapid double-clicks.
       window.setTimeout(() => {
         setCurrentIndex(nextIndex);
         setTriesLeft(3);
+        setHiddenOptions([]);
         setFeedback("");
       }, 400);
 
@@ -166,9 +188,6 @@ export default function Quiz({ setUser }) {
     if (nextTries <= 0) {
       alert("You Lose");
       setFeedback("");
-
-      // Top off any remaining XP for this quiz session (only kicks in once >= 5 are completed).
-      await awardXpProgress({ correct: correctCount, total: questions?.length || correctCount });
 
       setStatus("lose");
       return;
@@ -186,12 +205,36 @@ export default function Quiz({ setUser }) {
         </h1>
 
         {status === "idle" && (
-          <button
-            onClick={startQuiz}
-            className="block mx-auto bg-white/15 hover:bg-white/25 text-white px-12 py-6 rounded-full text-xl font-bold backdrop-blur-md border border-white/25 shadow-2xl hover:scale-105 transition"
-          >
-            Generate Quiz
-          </button>
+          <section className="rounded-3xl border border-white/25 bg-white/15 p-6 shadow-2xl backdrop-blur-md sm:p-8">
+            <p className="mb-5 text-center text-white/90">Choose your subject and challenge. New choices unlock as you level up.</p>
+            <h2 className="mb-3 text-lg font-bold text-white">Quiz genre</h2>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {QUIZ_GENRES.map((item) => {
+                const locked = level < item.minLevel;
+                const active = selectedGenre === item.id;
+                return (
+                  <button key={item.id} type="button" disabled={locked} onClick={() => setSelectedGenre(item.id)} className={`rounded-2xl border p-4 text-left transition ${active ? "border-white bg-white text-purple-800 shadow-lg" : "border-white/25 bg-white/10 text-white hover:bg-white/20"} ${locked ? "cursor-not-allowed opacity-55" : ""}`}>
+                    <span className="block font-bold">{item.label}</span>
+                    <span className={`mt-1 block text-xs ${active ? "text-purple-700" : "text-white/75"}`}>{locked ? `Unlocks at Level ${item.minLevel}` : item.description}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <h2 className="mb-3 mt-6 text-lg font-bold text-white">Difficulty</h2>
+            <div className="flex flex-wrap gap-3">
+              {QUIZ_DIFFICULTIES.map((item) => {
+                const locked = level < item.minLevel;
+                const active = selectedDifficulty === item.id;
+                return (
+                  <button key={item.id} type="button" disabled={locked} onClick={() => setSelectedDifficulty(item.id)} className={`rounded-full border px-5 py-2 font-semibold transition ${active ? "border-white bg-white text-purple-800" : "border-white/25 bg-white/10 text-white hover:bg-white/20"} ${locked ? "cursor-not-allowed opacity-55" : ""}`}>
+                    {item.label}{locked ? ` · Level ${item.minLevel}` : ""}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-4 text-sm text-white/80">Hints: {hintsAvailable ? `${hintsAvailable} per quiz` : "Unlock your first hint at Level 2"}. Harder quizzes earn more XP per correct answer.</p>
+            <button onClick={startQuiz} className="mx-auto mt-6 block rounded-full bg-white px-10 py-4 text-lg font-bold text-purple-700 shadow-xl transition hover:scale-105">Start {difficulty.label} {genre.label} Quiz</button>
+          </section>
         )}
 
         {status === "loading" && (
@@ -208,7 +251,7 @@ export default function Quiz({ setUser }) {
               <p className="text-white/90 mb-6">You still earned +{xpAdded} XP for completing {correctCount} questions.</p>
             )}
             {correctCount < 5 && (
-              <p className="text-white/90 mb-6">Complete at least 5 questions to earn XP.</p>
+              <p className="text-white/90 mb-6">Answer all 5 questions correctly to earn XP. This run scored {correctCount}/5.</p>
             )}
             <button
               onClick={startQuiz}
@@ -222,6 +265,7 @@ export default function Quiz({ setUser }) {
         {status === "complete" && (
           <div className="bg-white/15 backdrop-blur-md border border-white/25 rounded-3xl p-8 shadow-2xl text-center text-white">
             <h2 className="text-3xl font-extrabold mb-3">Quiz Complete!</h2>
+            <p className="mb-2 text-white/90">{genre.label} · {difficulty.label}</p>
             <p className="text-xl mb-2">
               Score: <span className="font-bold">{correctCount}</span>/{questions?.length || 10}
             </p>
@@ -230,6 +274,7 @@ export default function Quiz({ setUser }) {
             ) : (
               <p className="text-lg text-white/90 mb-6">Complete at least 5 questions to earn XP.</p>
             )}
+            {feedback && <p role="alert" className="mb-5 text-sm text-amber-100">{feedback}</p>}
             <button
               onClick={startQuiz}
               className="bg-white text-purple-700 px-10 py-4 rounded-full text-lg font-bold shadow-xl hover:scale-105 transition"
@@ -248,6 +293,7 @@ export default function Quiz({ setUser }) {
               <p className="text-white/90">
                 Tries left: <span className="font-bold">{triesLeft}</span> / 3
               </p>
+              <p className="text-white/90">{genre.label} · {difficulty.label}</p>
             </div>
 
             <div className="mb-6">
@@ -262,11 +308,18 @@ export default function Quiz({ setUser }) {
                 <button
                   key={idx}
                   onClick={() => handleAnswer(idx)}
-                  className="text-left bg-white/10 hover:bg-white/20 border border-white/20 rounded-2xl px-5 py-4 font-semibold shadow-lg transition"
+                  disabled={hiddenOptions.includes(idx)}
+                  className={`text-left border rounded-2xl px-5 py-4 font-semibold shadow-lg transition ${hiddenOptions.includes(idx) ? "invisible" : "bg-white/10 hover:bg-white/20 border-white/20"}`}
                 >
                   {opt}
                 </button>
               ))}
+            </div>
+
+            <div className="mt-5 flex justify-center">
+              <button type="button" onClick={useHint} disabled={hintsUsed >= hintsAvailable} className="rounded-full border border-white/40 px-5 py-2 font-semibold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50">
+                {hintsAvailable ? `Use Hint · ${hintsAvailable - hintsUsed} left` : "Hint unlocks at Level 2"}
+              </button>
             </div>
 
             {feedback && <p className="mt-6 text-center font-semibold">{feedback}</p>}

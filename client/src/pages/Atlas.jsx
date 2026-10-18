@@ -481,7 +481,8 @@ const selectedIcon = L.divIcon({
 
 const regions = ["All", "Africa", "Americas", "Asia", "Europe", "Oceania"];
 
-const Atlas = () => {
+const Atlas = ({ level = 1 }) => {
+  const currentLevel = Math.max(1, Number(level) || 1);
   const [selectedCountry, setSelectedCountry] = useState(null);
   const [search, setSearch] = useState("");
   const [activeRegion, setActiveRegion] = useState("All");
@@ -647,6 +648,17 @@ const Atlas = () => {
                   </div>
                   <p className="mt-3 text-sm leading-6 text-amber-950/80">{selectedCountry.fact}</p>
                 </section>
+
+                {currentLevel >= 8 ? (
+                  <section className="mt-4 rounded-2xl border border-violet-200 bg-violet-50 p-4">
+                    <div className="text-sm font-bold text-violet-900">Atlas Bonus Insight</div>
+                    <p className="mt-2 text-sm leading-6 text-violet-950/80">
+                      {selectedCountry.name} has the <strong>#{countryDataHardcoded.filter((country) => Number(country.population) > Number(selectedCountry.population)).length + 1}</strong> largest population among the {countryDataHardcoded.length} places in this Atlas.
+                    </p>
+                  </section>
+                ) : (
+                  <p className="mt-4 rounded-xl border border-violet-100 bg-violet-50 p-3 text-xs font-semibold text-violet-800">Unlock Atlas population insights at Level 8.</p>
+                )}
               </div>
             ) : (
               <div className="flex min-h-[380px] flex-col items-center justify-center px-5 text-center">
@@ -691,3 +703,4 @@ const Atlas = () => {
 };
 
 export default Atlas;
+

@@ -87,7 +87,10 @@ export default function SDG({ setUser }) {
         setUser((prev) => ({ ...(prev || {}), ...res.data.user }));
       }
 
-      alert("Reflection saved! +5 XP");
+      const xpAdded = Number(res?.data?.xpAdded || 0);
+      alert(xpAdded > 0
+        ? `Reflection saved! +${xpAdded} XP${xpAdded === 10 ? " — Level 5 reward bonus!" : ""}`
+        : "Reflection saved! You already earned the XP reward for this goal.");
       setReflection("");
       setSelectedGoal(null);
     } catch (err) {

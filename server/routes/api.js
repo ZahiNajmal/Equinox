@@ -10,6 +10,7 @@ const ai = require('../services/ai');
 const { fetchNews } = require('../services/news');
 const { enqueueLevelUpReport } = require('../services/email');
 const { createVaultProgressPdfBuffer } = require('../reports/vaultProgressPdf');
+const { XP_PER_CORRECT, quizUnlockError, reflectionXpAward } = require('../services/progression');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'equinox-secret-key-2025-change-in-production';
 
@@ -134,8 +135,8 @@ router.post('/user/interaction', authMiddleware, async (req, res) => {
   const dwellMs = Number.isFinite(Number(body.dwellMs)) ? Math.max(0, Number(body.dwellMs)) : 0;
   const rawCorrect = Number.isFinite(Number(body.correct)) ? Math.max(0, Math.floor(Number(body.correct))) : 0;
   const rawTotal = Number.isFinite(Number(body.total)) ? Math.max(0, Math.floor(Number(body.total))) : 0;
-  const total = Math.min(50, rawTotal);
-  const correct = Math.min(total > 0 ? total : 50, rawCorrect);
+  const total = Math.min(5, rawTotal);
+  const correct = Math.min(total > 0 ? total : 5, rawCorrect);
   const rawQuizId = (body.quizId || '').toString();
   const quizId = rawQuizId.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64);
 
@@ -155,7 +156,22 @@ router.post('/user/interaction', authMiddleware, async (req, res) => {
   } else if (event === 'activeMinute') {
     type = 'interaction.activeMinute'; xpToAdd = 5; description = ''; cooldownSeconds = 60;
   } else if (event === 'quizComplete' || event === 'quizProgress') {
-    const XP_PER_QUESTION = 20;
+    if (rawTotal !== 5 || rawCorrect > 5 || !quizId) {
+      return res.status(400).json({ error: 'A valid five-question quiz session is required.' });
+    }
+    const difficulty = String(body.difficulty || 'easy').toLowerCase();
+    const categoryId = Number(body.categoryId || 9);
+    let levelRes;
+    try {
+      levelRes = await req.db.query('SELECT level FROM users WHERE id = $1', [req.userId]);
+    } catch (error) {
+      console.error('Quiz level check failed:', error.message);
+      return res.status(500).json({ error: 'Could not verify quiz unlocks.' });
+    }
+    const currentLevel = Number(levelRes.rows[0]?.level || 1);
+    const unlockError = quizUnlockError(currentLevel, categoryId, difficulty);
+    if (unlockError) return res.status(403).json({ error: unlockError });
+    const xpPerQuestion = XP_PER_CORRECT[difficulty];
     if (correct < 5) {
       type = 'interaction.quiz'; xpToAdd = 0; description = `Quiz progress (${correct}/${total || correct} complete)`;
     } else if (quizId) {
@@ -163,9 +179,9 @@ router.post('/user/interaction', authMiddleware, async (req, res) => {
       description = `Quiz progress (${correct}/${total || correct} complete)`;
       const already = await req.db.query('SELECT COALESCE(SUM(xp), 0) AS xp FROM progress WHERE user_id = $1 AND type = $2', [req.userId, type]);
       const alreadyXp = Number(already.rows[0]?.xp || 0);
-      xpToAdd = Math.max(0, (correct * XP_PER_QUESTION) - alreadyXp);
+      xpToAdd = Math.max(0, (correct * xpPerQuestion) - alreadyXp);
     } else {
-      type = 'interaction.quizComplete'; xpToAdd = correct * XP_PER_QUESTION; description = `Completed a quiz (${correct}/${total || correct} complete)`; cooldownSeconds = 10;
+      type = 'interaction.quizComplete'; xpToAdd = correct * xpPerQuestion; description = `Completed a quiz (${correct}/${total || correct} complete)`; cooldownSeconds = 10;
     }
   }
 
@@ -219,14 +235,19 @@ router.post('/sdg/reflection', authMiddleware, async (req, res) => {
 
   if (!sdgId || !reflection) return res.status(400).json({ error: 'sdgId and reflection required' });
 
-  const XP_FOR_REFLECTION = 5;
   const type = `sdg.reflection:${sdgId}`;
   const description = `Saved SDG reflection (Goal ${sdgId})`;
 
   try {
     await req.db.query('BEGIN');
+    const lockedUserRes = await req.db.query('SELECT level FROM users WHERE id = $1 FOR UPDATE', [req.userId]);
+    const currentLevel = Number(lockedUserRes.rows[0]?.level || 1);
+    const alreadyEarned = await req.db.query('SELECT 1 FROM progress WHERE user_id = $1 AND type = $2 LIMIT 1', [req.userId, type]);
+    const xpForReflection = reflectionXpAward(currentLevel, alreadyEarned.rows.length > 0);
     await req.db.query('INSERT INTO missions (user_id, sdg_id, reflection) VALUES ($1, $2, $3)', [req.userId, sdgId, reflection]);
-    await req.db.query('UPDATE users SET xp = xp + $1 WHERE id = $2', [XP_FOR_REFLECTION, req.userId]);
+    if (xpForReflection > 0) {
+      await req.db.query('UPDATE users SET xp = xp + $1 WHERE id = $2', [xpForReflection, req.userId]);
+    }
     const updatedRes = await req.db.query('SELECT username, xp, level FROM users WHERE id = $1', [req.userId]);
     const updated = updatedRes.rows[0];
     const previousLevel = Number(updated.level || 1);
@@ -235,12 +256,14 @@ router.post('/sdg/reflection', authMiddleware, async (req, res) => {
       await req.db.query('UPDATE users SET level = $1 WHERE id = $2', [newLevel, req.userId]);
       updated.level = newLevel;
     }
-    await req.db.query('INSERT INTO progress (user_id, type, description, xp) VALUES ($1, $2, $3, $4)', [req.userId, type, description, XP_FOR_REFLECTION]);
+    if (xpForReflection > 0) {
+      await req.db.query('INSERT INTO progress (user_id, type, description, xp) VALUES ($1, $2, $3, $4)', [req.userId, type, description, xpForReflection]);
+    }
     await req.db.query('COMMIT');
     if (newLevel > previousLevel) {
       await enqueueLevelUpReport(req.db, { userId: req.userId, previousLevel, newLevel, xp: Number(updated.xp || 0) });
     }
-    return res.json({ xpAdded: XP_FOR_REFLECTION, user: updated });
+    return res.json({ xpAdded: xpForReflection, firstRewardForGoal: xpForReflection > 0, user: updated });
   } catch (err) {
     await req.db.query('ROLLBACK');
     res.status(500).json({ error: 'Server error' });

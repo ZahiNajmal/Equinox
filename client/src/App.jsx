@@ -31,14 +31,14 @@ function AppRoutes({ user, setUser }) {
       <Route path="/signin" element={user ? <Navigate to="/" /> : <SignIn />} />
       <Route path="/signup" element={user ? <Navigate to="/" /> : <SignUp />} />
       <Route path="/" element={user ? <Dashboard user={user} /> : <Navigate to="/signin" />} />
-      <Route path="/atlas" element={user ? <Atlas /> : <Navigate to="/signin" />} />
+      <Route path="/atlas" element={user ? <Atlas level={user.level} /> : <Navigate to="/signin" />} />
       <Route path="/mentor" element={user ? <Mentor /> : <Navigate to="/signin" />} />
-      <Route path="/prisma" element={user ? <Prisma /> : <Navigate to="/signin" />} />
+      <Route path="/prisma" element={user ? <Prisma level={user.level} /> : <Navigate to="/signin" />} />
       <Route path="/insight" element={user ? <Insight /> : <Navigate to="/signin" />} />
       <Route path="/codex" element={user ? <Codex /> : <Navigate to="/signin" />} />
       <Route path="/sdg" element={user ? <SDG setUser={setUser} /> : <Navigate to="/signin" />} />
       <Route path="/vault" element={user ? <Vault /> : <Navigate to="/signin" />} />
-      <Route path="/quiz" element={user ? <Quiz setUser={setUser} /> : <Navigate to="/signin" />} />
+      <Route path="/quiz" element={user ? <Quiz user={user} setUser={setUser} /> : <Navigate to="/signin" />} />
     </Routes>
   );
 }
