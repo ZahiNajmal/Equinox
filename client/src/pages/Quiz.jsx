@@ -46,6 +46,7 @@ export default function Quiz({ setUser, user }) {
   const [selectedDifficulty, setSelectedDifficulty] = useState("easy");
   const [hintsUsed, setHintsUsed] = useState(0);
   const [hiddenOptions, setHiddenOptions] = useState([]);
+  const [answerHistory, setAnswerHistory] = useState({});
 
   const genre = QUIZ_GENRES.find((item) => item.id === selectedGenre) || QUIZ_GENRES[0];
   const difficulty = QUIZ_DIFFICULTIES.find((item) => item.id === selectedDifficulty) || QUIZ_DIFFICULTIES[0];
@@ -64,6 +65,7 @@ export default function Quiz({ setUser, user }) {
     setQuizId(newQuizId());
     setHintsUsed(0);
     setHiddenOptions([]);
+    setAnswerHistory({});
 
     try {
       const params = new URLSearchParams({ amount: "5", category: String(genre.categoryId), difficulty: difficulty.id, type: "multiple" });
@@ -159,6 +161,13 @@ export default function Quiz({ setUser, user }) {
     if (status !== "inProgress" || !currentQuestion) return;
 
     const isCorrect = pickedIndex === currentQuestion.correctIndex;
+    setAnswerHistory((previous) => ({
+      ...previous,
+      [currentQuestion.id]: [
+        ...(previous[currentQuestion.id] || []),
+        { answer: currentQuestion.options[pickedIndex], isCorrect },
+      ],
+    }));
 
     if (isCorrect) {
       const nextCorrect = correctCount + 1;
@@ -196,6 +205,44 @@ export default function Quiz({ setUser, user }) {
     setTriesLeft(nextTries);
     setFeedback(`Wrong answer. ${nextTries} ${nextTries === 1 ? "try" : "tries"} left.`);
   };
+
+  const renderAnswerReview = () => (
+    <section className="mt-7 text-left">
+      <h3 className="mb-4 text-2xl font-extrabold">Answer review</h3>
+      <p className="mb-4 text-sm text-white/80">Here’s what you chose, the correct answer, and any questions you didn’t reach.</p>
+      <div className="space-y-4">
+        {(questions || []).map((question, index) => {
+          const attempts = answerHistory[question.id] || [];
+          const gotItRight = attempts.some((attempt) => attempt.isCorrect);
+          return (
+            <article key={question.id} className="rounded-2xl border border-white/20 bg-black/10 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <h4 className="font-bold">{index + 1}. {question.question}</h4>
+                <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${gotItRight ? "bg-emerald-200 text-emerald-900" : attempts.length ? "bg-rose-200 text-rose-900" : "bg-white/20 text-white"}`}>
+                  {gotItRight ? "Correct" : attempts.length ? "Not correct" : "Not answered"}
+                </span>
+              </div>
+              <div className="mt-3 space-y-2 text-sm">
+                {attempts.length ? (
+                  <div>
+                    <p className="font-semibold text-white/80">Your answer{attempts.length > 1 ? "s" : ""}:</p>
+                    <ol className="mt-1 list-inside list-decimal space-y-1">
+                      {attempts.map((attempt, attemptIndex) => (
+                        <li key={`${question.id}-${attemptIndex}`} className={attempt.isCorrect ? "text-emerald-100" : "text-rose-100"}>
+                          {attempt.answer}{attempt.isCorrect ? " — correct" : " — incorrect"}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ) : <p className="text-white/70">You didn’t answer this question.</p>}
+                <p className="rounded-xl bg-emerald-400/15 p-3 text-emerald-50"><strong>Correct answer:</strong> {question.options[question.correctIndex]}</p>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-500 via-purple-600 to-blue-500 py-10 px-4 sm:px-6 lg:px-8">
@@ -259,6 +306,7 @@ export default function Quiz({ setUser, user }) {
             >
               Try Again
             </button>
+            {renderAnswerReview()}
           </div>
         )}
 
@@ -281,6 +329,7 @@ export default function Quiz({ setUser, user }) {
             >
               Play Again
             </button>
+            {renderAnswerReview()}
           </div>
         )}
 
