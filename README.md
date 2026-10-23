@@ -114,5 +114,3 @@ See `curl_examples.sh` in root for example calls to test APIs.
 - All AI endpoints return sample responses for local dev when `GOOGLE_AI_KEY` is not set, so you can build UI without costs.
 
 ---
-
-If anything is missing or you want a Dockerfile, a SQLite migration, or more sample data, tell me and I will add it.
