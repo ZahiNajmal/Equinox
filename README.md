@@ -15,7 +15,7 @@ See top of repository for the full folder tree. Key folders:
 - (Optional) For PDF generation: no external service required; uses pdfkit (server-side)
 
 ## Environment variables
-Copy `.env.example` to `.env` in the project root and fill with your keys (do NOT commit real keys).
+Copy `.env.example` to `.env` in the project root and fill with your keys.
 
 Server environment variables (.env in project root):
 - `GOOGLE_AI_KEY` — Google AI Studio API key (server-side only, NO `VITE_` prefix)
